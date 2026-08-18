@@ -1,0 +1,7 @@
+{
+ "rs2660": "ref G, genome has A",
+ "rs2305480": "ref A, genome has G",
+ "rs2305479": "ref G, genome has C (strand complement)",
+ "rs11078928": "ref C, genome has G (strand complement)",
+ "rs121908089": "ref C, genome has A"
+}

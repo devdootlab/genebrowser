@@ -1,0 +1,242 @@
+{
+ "OAS1": [
+  {
+   "bin": 71,
+   "start": 112914687,
+   "end": 112914811,
+   "n": 215,
+   "fold": 4.7,
+   "homopolymer": 18,
+   "str": "Tx18",
+   "gc": 27,
+   "cpg_oe": 0,
+   "segdup": false,
+   "verdict": "artifact",
+   "why": "18-base homopolymer — sequencers slip in these"
+  },
+  {
+   "bin": 105,
+   "start": 112918916,
+   "end": 112919040,
+   "n": 196,
+   "fold": 4.3,
+   "homopolymer": 6,
+   "str": "Gx6",
+   "gc": 52,
+   "cpg_oe": 0.16,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 52%, CpG o/e 0.16"
+  }
+ ],
+ "GSDMB": [
+  {
+   "bin": 30,
+   "start": 39906676,
+   "end": 39906745,
+   "n": 181,
+   "fold": 4.5,
+   "homopolymer": 5,
+   "str": "Cx5",
+   "gc": 50,
+   "cpg_oe": 0.46,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 50%, CpG o/e 0.46"
+  },
+  {
+   "bin": 187,
+   "start": 39917565,
+   "end": 39917635,
+   "n": 183,
+   "fold": 4.5,
+   "homopolymer": 4,
+   "str": null,
+   "gc": 49,
+   "cpg_oe": 0.81,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 49%, CpG o/e 0.81"
+  }
+ ],
+ "F2": [
+  {
+   "bin": 147,
+   "start": 46752145,
+   "end": 46752370,
+   "n": 407,
+   "fold": 4.4,
+   "homopolymer": 6,
+   "str": "ACx20",
+   "gc": 26,
+   "cpg_oe": 0.3,
+   "segdup": false,
+   "verdict": "artifact",
+   "why": "short tandem repeat (AC)x20"
+  }
+ ],
+ "F5": [
+  {
+   "bin": 112,
+   "start": 169550005,
+   "end": 169550344,
+   "n": 454,
+   "fold": 4.7,
+   "homopolymer": 12,
+   "str": "Cx12",
+   "gc": 38,
+   "cpg_oe": 0.42,
+   "segdup": false,
+   "verdict": "artifact",
+   "why": "12-base homopolymer — sequencers slip in these"
+  },
+  {
+   "bin": 219,
+   "start": 169586359,
+   "end": 169586699,
+   "n": 415,
+   "fold": 4.3,
+   "homopolymer": 5,
+   "str": "Tx5",
+   "gc": 60,
+   "cpg_oe": 0.26,
+   "segdup": false,
+   "verdict": "real",
+   "why": "GC-rich (60%) with no repeat structure"
+  }
+ ],
+ "FGA": [
+  {
+   "bin": 53,
+   "start": 154584082,
+   "end": 154584122,
+   "n": 202,
+   "fold": 7.7,
+   "homopolymer": 3,
+   "str": null,
+   "gc": 49,
+   "cpg_oe": 0,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 49%, CpG o/e 0.00"
+  },
+  {
+   "bin": 144,
+   "start": 154587716,
+   "end": 154587756,
+   "n": 150,
+   "fold": 5.7,
+   "homopolymer": 6,
+   "str": "Ax6",
+   "gc": 37,
+   "cpg_oe": 0,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 37%, CpG o/e 0.00"
+  },
+  {
+   "bin": 145,
+   "start": 154587756,
+   "end": 154587796,
+   "n": 219,
+   "fold": 8.4,
+   "homopolymer": 3,
+   "str": "AAAGx10",
+   "gc": 24,
+   "cpg_oe": 0,
+   "segdup": false,
+   "verdict": "artifact",
+   "why": "short tandem repeat (AAAG)x10"
+  }
+ ],
+ "FGG": [
+  {
+   "bin": 6,
+   "start": 154604301,
+   "end": 154604341,
+   "n": 86,
+   "fold": 4.1,
+   "homopolymer": 6,
+   "str": "Ax6",
+   "gc": 27,
+   "cpg_oe": 1.37,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 27%, CpG o/e 1.37"
+  }
+ ],
+ "VWF": [
+  {
+   "bin": 19,
+   "start": 5964068,
+   "end": 5964867,
+   "n": 1738,
+   "fold": 5.8,
+   "homopolymer": 6,
+   "str": "ATACx7",
+   "gc": 44,
+   "cpg_oe": 0.28,
+   "segdup": false,
+   "verdict": "artifact",
+   "why": "short tandem repeat (ATAC)x7"
+  }
+ ],
+ "F8": [
+  {
+   "bin": 57,
+   "start": 154885314,
+   "end": 154886183,
+   "n": 756,
+   "fold": 4,
+   "homopolymer": 14,
+   "str": "Gx14",
+   "gc": 62,
+   "cpg_oe": 0.42,
+   "segdup": true,
+   "verdict": "artifact",
+   "why": "inside a segmental duplication — reads misplace between copies"
+  },
+  {
+   "bin": 84,
+   "start": 154908773,
+   "end": 154909642,
+   "n": 958,
+   "fold": 5.1,
+   "homopolymer": 6,
+   "str": "Tx6",
+   "gc": 45,
+   "cpg_oe": 0.16,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 45%, CpG o/e 0.16"
+  },
+  {
+   "bin": 96,
+   "start": 154919200,
+   "end": 154920069,
+   "n": 952,
+   "fold": 5.1,
+   "homopolymer": 6,
+   "str": "Tx6",
+   "gc": 40,
+   "cpg_oe": 0.06,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 40%, CpG o/e 0.06"
+  },
+  {
+   "bin": 219,
+   "start": 155026071,
+   "end": 155026940,
+   "n": 768,
+   "fold": 4.1,
+   "homopolymer": 6,
+   "str": "Gx6",
+   "gc": 47,
+   "cpg_oe": 1.03,
+   "segdup": false,
+   "verdict": "unexplained",
+   "why": "no repeat, GC 47%, CpG o/e 1.03"
+  }
+ ]
+}

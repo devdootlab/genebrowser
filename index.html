@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gene browser — table first</title>
+<style>
+:root{--bg:#fbfaf8;--panel:#ffffff;--ink:#17202a;--faint:#6b7683;--rule:#dcdfe4;--rule2:#eef0f3;
+      --accent:#1f6fb2;--warn:#9a6414;--pos:#1c6340;--neg:#a3352c;--cur:#7a3fa6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1400px;margin:0 auto;padding:18px 18px 70px}
+h1{font-size:19px;margin:0 0 2px;font-weight:700}
+.sub{color:var(--faint);font-size:13px;margin:0 0 14px}
+.genes{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.g{background:var(--panel);border:1px solid var(--rule);color:var(--ink);border-radius:6px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
+.g[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#ffffff}
+.g .c{color:var(--faint);font-weight:400;margin-left:7px;font-variant-numeric:tabular-nums}
+.g[aria-pressed=true] .c{color:#ffffff;opacity:.75}
+.honest{border-left:3px solid var(--warn);background:var(--rule2);padding:9px 12px;font-size:12.5px;margin:0 0 14px;color:#cfd9e4}
+.honest b{color:var(--warn)}
+.strip{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:9px 11px;margin:0 0 14px}
+.strip svg{width:100%;height:150px;display:block}
+.slab{font-size:11px;color:var(--faint);margin:0 0 5px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 6px}
+.chip{background:transparent;border:1px solid var(--rule);color:var(--ink);border-radius:999px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#ffffff}
+.chip .n{color:var(--faint);margin-left:5px;font-variant-numeric:tabular-nums}
+.chip[aria-pressed=true] .n{color:#ffffff;opacity:.8}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+input[type=search]{background:var(--panel);border:1px solid var(--rule);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;min-width:190px}
+.count{color:var(--faint);font-size:12.5px}
+.tw{border:1px solid var(--rule);border-radius:7px;overflow:auto;max-height:60vh}
+table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:940px}
+th{position:sticky;top:0;background:var(--panel);text-align:left;padding:7px 9px;border-bottom:2px solid var(--rule);cursor:pointer;white-space:nowrap;font-weight:600;z-index:2}
+th:hover{color:var(--accent)}
+td{padding:6px 9px;border-bottom:1px solid var(--rule2);white-space:nowrap}
+tr:hover td{background:var(--rule2)}
+tr.cur td{background:rgba(122,63,166,.09)}
+tr.sel td{background:rgba(31,111,178,.13)}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.tag{font-size:11px;padding:1px 6px;border-radius:4px;border:1px solid var(--rule);color:var(--faint)}
+.det{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:14px;margin-top:14px}
+.det img{max-width:100%;background:#fff;border:1px solid var(--rule);border-radius:5px;margin-top:9px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:12.5px}
+.kv b{color:var(--faint);font-weight:400}
+a{color:var(--accent)}
+.empty{padding:22px;color:var(--faint);text-align:center}
+#zoomwrap{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:9px 11px;margin:12px 0}
+#zoom{width:100%;height:235px;display:block}
+#zoom circle{cursor:pointer}
+#zoom circle:hover{stroke:var(--ink);stroke-width:1.5}
+.qbar{display:flex;gap:8px;align-items:center;margin-top:7px;flex-wrap:wrap}
+.qbtn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:6px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.qbtn.ghost{background:transparent;color:var(--accent)}
+.qq{font-size:12px;color:var(--faint)}
+</style></head><body><div class="wrap">
+
+<h1>Gene browser</h1>
+<p class="sub">Table first. The strip is for orientation, not for reading values off.</p>
+
+<div class="genes" id="genes"></div>
+
+<div class="honest" id="honest"></div>
+
+<div class="strip">
+  <p class="slab" id="slab"></p>
+  <svg id="strip" preserveAspectRatio="none" role="img"></svg>
+</div>
+
+<div id="zoomwrap" hidden>
+  <p class="slab" id="zlab"></p>
+  <svg id="zoom" preserveAspectRatio="none" role="img"></svg>
+  <p class="slab" id="qlab"></p>
+</div>
+<div class="chips" id="chips"></div>
+<div class="bar">
+  <input id="find" type="search" placeholder="rsID, position or consequence">
+  <span class="count" id="count"></span>
+</div>
+
+<div class="tw"><table id="t"><thead><tr id="hr"></tr></thead><tbody id="tb"></tbody></table></div>
+<div id="det"></div>
+
+<script>
+/* Scaffold for the prime user: a scientist trying to FIND a variant, not admire a picture.
+   gnomAD and ClinVar are both table-first for that reason. The previous view was 162 dots at two
+   distinct heights, no tooltips, no click handlers, and a caption claiming the height was phyloP
+   conservation when it was not. Everything printed here is derived from the loaded rows. */
+var GENES = {}, ROWS = [], PANELS = {}, GENE = null, SORT = {k:'af', d:-1}, CONS = null, BAND = null, ONLY = null, SEL = null;
+var $ = function (s) { return document.querySelector(s); };
+
+var COLS = [
+  {k:'rsid',  label:'rsID',        get:function(r){return r.rsid;}},
+  {k:'pos',   label:'position',    num:true, get:function(r){return r.pos;}, fmt:function(r){return r.pos.toLocaleString();}},
+  {k:'change',label:'change',      get:function(r){return r.ref+'>'+r.alt;}},
+  {k:'cons',  label:'consequence', get:function(r){return consOf(r);}},
+  {k:'af',    label:'gnomAD AF',   num:true, get:function(r){return r.af==null?null:r.af;},
+              fmt:function(r){return r.af==null?'—':(r.af>=0.001?(r.af*100).toFixed(2)+'%':(r.af*100).toExponential(1)+'%');}},
+  {k:'band',  label:'band',        get:function(r){return band(r);}},
+  {k:'src',   label:'source',      get:function(r){return r.curated?'curated':'gnomAD';}},
+  {k:'spliceai', label:'SpliceAI', num:true, get:function(r){return r.spliceai==null?null:r.spliceai;},
+              fmt:function(r){ if(r.spliceai==null) return '&mdash;';
+                var c = r.spliceai>=0.8?'var(--neg)':r.spliceai>=0.5?'var(--warn)':'var(--faint)';
+                return '<b style="color:'+c+'">'+r.spliceai.toFixed(2)+'</b>'; }},
+  {k:'phylop', label:'phyloP', num:true, get:function(r){return r.phylop==null?null:r.phylop;},
+              fmt:function(r){return r.phylop==null?'&mdash;':r.phylop.toFixed(2);}},
+  {k:'panel', label:'AlphaGenome', num:true, get:function(r){var p=PANELS[pkey(r)];return p?Math.abs(p.splice_log2fc):null;},
+              fmt:function(r){var p=PANELS[pkey(r)];return p?('<b style="color:#1f6fb2">'+p.splice_log2fc.toFixed(3)+'</b>'):'&mdash;';}}
+];
+
+var CONS_MAP = [
+  [/splice[ _-]?acceptor/i,        'splice acceptor'],
+  [/splice[ _-]?donor/i,           'splice donor'],
+  [/splice[ _-]?region/i,          'splice region'],
+  [/polypyrimidine/i,              'polypyrimidine tract'],
+  [/(^|\b)(3'?|3 prime)[ _-]?utr/i, "3' UTR"],
+  [/(^|\b)(5'?|5 prime)[ _-]?utr/i, "5' UTR"],
+  [/intron/i,                      'intron'],
+  [/missense/i,                    'missense'],
+  [/synonymous/i,                  'synonymous'],
+  [/stop|nonsense/i,               'stop'],
+  [/frameshift/i,                  'frameshift'],
+  [/non[ _-]?coding[ _-]?transcript/i, 'non-coding transcript'],
+  [/upstream/i,                    'upstream'],
+  [/downstream/i,                  'downstream'],
+  [/regulatory|tf[ _-]?binding/i,  'regulatory']
+];
+// One canonical label per class. Parenthetical detail is dropped -- "Missense (p.Gly347Ser)" is a
+// description of one row, not a category, and can never match a second variant.
+function consOf(r){
+  var raw = String(r.consequence || '').trim();
+  if (!raw) return 'unknown';
+  for (var i = 0; i < CONS_MAP.length; i++) if (CONS_MAP[i][0].test(raw)) return CONS_MAP[i][1];
+  return raw.replace(/\s*\(.*$/, '').toLowerCase();
+}
+function pkey(r){ return (r.rsid || r.pos) + '_' + r.ref + r.alt; }
+function band(r){
+  if (r.af == null) return 'unknown';
+  if (r.af >= 0.05) return 'common ≥5%';
+  if (r.af >= 0.01) return 'low-freq 1–5%';
+  if (r.af >= 0.001) return 'rare 0.1–1%';
+  return 'very rare <0.1%';
+}
+
+// Per-gene slim files. The old build shipped ONE 23.6 MB JSON holding all four genes and parsed
+// every row to show one gene's table -- 60,453 objects allocated before a single row appeared.
+// Each gene is now 0.6-1.5 MB, columnar, carrying only the fields the table renders.
+var LOADED = {}, LOADING = false;
+
+function rowsFrom(pack){
+  var C = pack.cols, ch = pack.chrom, gn = pack.gene;
+  return pack.rows.map(function(a){
+    var r = {gene:gn, chrom:ch};
+    for (var i = 0; i < C.length; i++) r[C[i]] = a[i];
+    r.consequence = r.cons; r.curated = !!r.curated; r.coding = !!r.coding;
+    return r;
+  });
+}
+
+function loadGene(g, done){
+  if (LOADED[g]) { done(); return; }
+  LOADING = true;
+  $('#count').textContent = 'loading ' + g + '\u2026';
+  $('#tb').innerHTML = '<tr><td colspan="8" class="empty">loading ' + g + '\u2026</td></tr>';
+  fetch('data/variants_' + g + '.json')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(pack){ LOADED[g] = rowsFrom(pack); LOADING = false; done(); })
+    .catch(function(e){
+      LOADING = false;
+      $('#tb').innerHTML = '<tr><td colspan="8" class="empty">could not load ' + g + ': ' + e.message + '</td></tr>';
+    });
+}
+
+window.REFBAD = {};
+fetch('data/ref_mismatch.json').then(function(r){return r.json();}).then(function(j){ window.REFBAD = j; }).catch(function(){});
+
+Promise.all([
+  fetch('data/genes.json').then(function(r){return r.json();}),
+  fetch('data/panels.json').then(function(r){return r.json();}).catch(function(){return {drawn:[]};}),
+  fetch('data/spike_classification.json').then(function(r){return r.json();}).catch(function(){return {};})
+]).then(function(a){
+  GENES = a[0];
+  (a[1] && a[1].drawn || []).forEach(function(p){ PANELS[(p.rsid || p.pos) + '_' + p.ref + p.alt] = p; });
+  SPIKES = a[2] || {};
+  GENE = Object.keys(GENES)[0];
+  drawGenes();
+  loadGene(GENE, render);
+}).catch(function(e){ $('#tb').innerHTML = '<tr><td colspan="8" class="empty">Could not load data: ' + e + '</td></tr>'; });
+
+function drawGenes(){
+  var n = $('#genes'); n.innerHTML = '';
+  Object.keys(GENES).forEach(function(g){
+    var c = (LOADED[g] && LOADED[g].length) || GENES[g].n_variants || null;
+    var b = document.createElement('button');
+    b.className = 'g'; b.type = 'button'; b.setAttribute('aria-pressed', String(GENE === g));
+    b.innerHTML = g + '<span class="c">' + (c == null ? '\u2026' : c.toLocaleString()) + '</span>';
+    b.onclick = function(){ if (LOADING) return; GENE = g; CONS = null; BAND = null; ONLY = null; SEL = null;
+      $('#find').value = ''; drawGenes(); loadGene(g, render); };
+    n.appendChild(b);
+  });
+}
+
+function forGene(){ var a = LOADED[GENE] || []; return SHOWCODING ? a : a.filter(function(r){ return !r.coding; }); }
+
+function shown(){
+  var q = ($('#find').value || '').trim().toLowerCase();
+  return forGene().filter(function(r){
+    if (CONS && consOf(r) !== CONS) return false;
+    if (BAND && band(r) !== BAND) return false;
+    // ONLY lives in state like every other filter. It used to call renderList() directly, so the
+    // next render() -- which a row click triggers -- recomputed without it and the list sprang
+    // back to all 9,969. A filter a click can silently undo is worse than no filter.
+    if (ONLY === 'curated' && !r.curated) return false;
+    if (ONLY === 'panel' && !PANELS[pkey(r)]) return false;
+    if (ONLY && ONLY.indexOf('sa') === 0 && !(r.spliceai != null && r.spliceai >= +ONLY.slice(2))) return false;
+    if (WIN && (r.pos < WIN[0] || r.pos >= WIN[1])) return false;
+    // Default view is non-coding, so all nine genes show the same population. Four were pulled
+    // non-coding-only and can never contribute a coding row; without this the same chip means
+    // different things depending on which gene you are looking at.
+    if (!SHOWCODING && r.coding) return false;
+    if (q && (r.rsid + ' ' + r.pos + ' ' + consOf(r) + ' ' + (r.consequence||'')).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+}
+
+/* The strip is a DENSITY histogram, not one tick per variant. 20,186 ticks across 1200px is a
+   solid block that conveys nothing — the previous build proved that. Bars are counts per bin. */
+/* Density strip. Three things the first version got wrong:
+   - no y-axis. The scale sat in the caption, so a tall bar was visibly tall and numerically
+     meaningless. Gridlines and labels now.
+   - bars were not clickable. The most interesting thing on the chart -- a spike -- was the one
+     thing you could not interrogate.
+   - no artifact warning. OAS1's tallest bin is 215 variants in 124 bp at 78 distinct positions,
+     sitting on an 18-base poly-T tract: a homopolymer where sequencers slip and aligners
+     misplace reads. That is a basecalling pile-up, not biology, and it dominates the chart. */
+var BINSEL = null, WIN = null;
+
+function drawStrip(list, sel){
+  var g = GENES[GENE]; if (!g) return;
+  var W = 1200, H = 150, PADB = 22, PADT = 30, PADL = 34, NB = 220;
+  var s0 = g.start, e0 = g.end, span = e0 - s0;
+  var bins = new Array(NB).fill(0);
+  list.forEach(function(r){ var i = Math.floor((r.pos - s0) / span * NB); if (i >= 0 && i < NB) bins[i]++; });
+  var max = Math.max.apply(null, bins) || 1;
+  var plotW = W - PADL - 6, bw = plotW / NB, plotH = H - PADT - PADB, out = '';
+
+  // y-axis: gridlines with real numbers, so bar height can be read rather than sensed
+  var stepY = Math.max(1, Math.pow(10, Math.floor(Math.log10(max))) / 2);
+  while (max / stepY > 6) stepY *= 2;
+  for (var yv = 0; yv <= max; yv += stepY) {
+    var y = PADT + plotH * (1 - yv / max);
+    out += '<line x1="' + PADL + '" y1="' + y.toFixed(1) + '" x2="' + W + '" y2="' + y.toFixed(1) +
+           '" stroke="#dcdfe4" stroke-width="1"/>';
+    out += '<text x="' + (PADL - 5) + '" y="' + (y + 3).toFixed(1) + '" font-size="9" fill="#6b7683" text-anchor="end">' + yv + '</text>';
+  }
+  out += '<text x="8" y="' + (PADT + plotH / 2) + '" font-size="9" fill="#6b7683" transform="rotate(-90 8 ' +
+         (PADT + plotH / 2) + ')" text-anchor="middle">variants / bin</text>';
+
+  // gene model on the axis
+  out += '<rect x="' + PADL + '" y="' + (PADT - 11) + '" width="' + plotW + '" height="3" fill="#c8ced6"/>';
+  var nEx = 0;
+  (g.exons || []).forEach(function(ex){
+    var p = Array.isArray(ex) ? ex : [ex.start, ex.end];
+    if (!isFinite(p[0]) || !isFinite(p[1])) return;
+    var x0 = PADL + (Math.min(p[0],p[1]) - s0) / span * plotW, x1 = PADL + (Math.max(p[0],p[1]) - s0) / span * plotW;
+    out += '<rect x="' + x0.toFixed(1) + '" y="' + (PADT - 16) + '" width="' + Math.max(1.6, x1 - x0).toFixed(1) +
+           '" height="13" fill="#4a7fae" rx="1"/>';
+    nEx++;
+  });
+
+  bins.forEach(function(n, i){
+    var x = PADL + i * bw;
+    var b0 = Math.round(s0 + i / NB * span), b1 = Math.round(s0 + (i + 1) / NB * span);
+    // every bin is a hit target, including empty ones, so clicking never misses by a pixel
+    out += '<rect class="bin" data-i="' + i + '" data-b0="' + b0 + '" data-b1="' + b1 +
+           '" x="' + x.toFixed(2) + '" y="' + PADT + '" width="' + bw.toFixed(2) + '" height="' + plotH +
+           '" fill="' + (BINSEL === i ? 'rgba(192,122,20,0.16)' : 'transparent') + '" style="cursor:pointer">' +
+           '<title>chr' + String(g.chrom).replace('chr','') + ':' + b0.toLocaleString() + '-' + b1.toLocaleString() +
+           '\n' + n + ' variant' + (n === 1 ? '' : 's') + ' in ' + (b1 - b0) + ' bp' +
+           (function(){
+             var q = (SPIKES[GENE] || []).filter(function(x){ return x.bin === i; })[0];
+             if (!q) return (n > 4 * (list.length / NB)) ? '\nDENSITY OUTLIER, not yet classified' : '';
+             return '\n\n' + q.verdict.toUpperCase() + ' (' + q.fold + 'x the mean)\n' + q.why +
+                    '\nGC ' + q.gc + '%  CpG o/e ' + q.cpg_oe +
+                    (q.homopolymer >= 6 ? '  longest homopolymer ' + q.homopolymer : '') +
+                    (q.str ? '  repeat ' + q.str : '') + (q.segdup ? '  segmental duplication' : '');
+           })() +
+           '\nclick to filter the table to this window</title></rect>';
+    if (!n) return;
+    var h = plotH * (n / max);
+    // Each outlier now carries its own verdict from data/spike_classification.json: repeat
+    // structure and segdups are calling noise, GC/CpG elevation with no repeat is real mutability.
+    // The old code coloured every outlier red and captioned it "usually homopolymers", which was a
+    // guess applied uniformly -- and it is right for 6 of 16, not all of them.
+    var sp = (SPIKES[GENE] || []).filter(function(x){ return x.bin === i; })[0];
+    var hot = n > 4 * (list.length / NB);
+    var vcol = sp ? ({artifact:'#a3352c', real:'#1c6340', unexplained:'#9a6414'})[sp.verdict] : '#a3352c';
+    out += '<rect x="' + (x + 0.2).toFixed(2) + '" y="' + (PADT + plotH - h).toFixed(1) + '" width="' +
+           Math.max(0.8, bw - 0.4).toFixed(2) + '" height="' + h.toFixed(1) + '" fill="' +
+           (hot ? vcol : '#1f6fb2') + '" opacity="' + (hot ? 0.9 : 0.55) + '" pointer-events="none"/>';
+  });
+
+  list.filter(function(r){ return r.curated; }).forEach(function(r){
+    var x = PADL + (r.pos - s0) / span * plotW;
+    out += '<line x1="' + x.toFixed(1) + '" y1="' + (PADT - 18) + '" x2="' + x.toFixed(1) + '" y2="' +
+           (PADT + plotH) + '" stroke="#7a3fa6" stroke-width="1.4" pointer-events="none"/>';
+  });
+  if (SEL) {
+    var xs = PADL + (SEL.pos - s0) / span * plotW;
+    out += '<line x1="' + xs.toFixed(1) + '" y1="6" x2="' + xs.toFixed(1) + '" y2="' + (PADT + plotH) +
+           '" stroke="#c07a14" stroke-width="2" pointer-events="none"/>';
+  }
+  out += '<text x="' + PADL + '" y="' + (H - 5) + '" font-size="9.5" fill="#6b7683">' + g.chrom + ':' + s0.toLocaleString() + '</text>';
+  out += '<text x="' + W + '" y="' + (H - 5) + '" font-size="9.5" fill="#6b7683" text-anchor="end">' + e0.toLocaleString() + '</text>';
+
+  // the current filter, drawn over the full-gene histogram rather than replacing it
+  if (sel && sel.length && sel.length < list.length) {
+    var selBins = new Array(NB).fill(0);
+    sel.forEach(function(r){ var i = Math.floor((r.pos - s0) / span * NB); if (i >= 0 && i < NB) selBins[i]++; });
+    selBins.forEach(function(n, i){
+      if (!n) return;
+      var h = plotH * (n / max), x = PADL + i * bw;
+      out += '<rect x="' + (x + 0.2).toFixed(2) + '" y="' + (PADT + plotH - h).toFixed(1) + '" width="' +
+             Math.max(0.8, bw - 0.4).toFixed(2) + '" height="' + h.toFixed(1) +
+             '" fill="var(--warn)" opacity="0.95" pointer-events="none"/>';
+    });
+  }
+  var hotN = bins.filter(function(n){ return n > 4 * (list.length / NB); }).length;
+  out += '<text x="' + (PADL + plotW / 2) + '" y="' + (H - 5) + '" font-size="9.5" fill="#6b7683" text-anchor="middle">' +
+         span.toLocaleString() + ' bp \u00b7 ' + NB + ' bins \u00b7 ' + (b1 = Math.round(span / NB)) + ' bp each</text>';
+
+  var sv = $('#strip'); sv.setAttribute('viewBox', '0 0 ' + W + ' ' + H); sv.innerHTML = out;
+  sv.querySelectorAll('rect.bin').forEach(function(el){
+    el.addEventListener('click', function(){
+      var i = +el.getAttribute('data-i');
+      BINSEL = (BINSEL === i) ? null : i;
+      WIN = BINSEL == null ? null : [+el.getAttribute('data-b0'), +el.getAttribute('data-b1')];
+      render();
+    });
+  });
+  $('#slab').innerHTML = 'Bar height = variants per bin, y-axis at left. ' + nEx + ' exons to scale (strand ' +
+    (g.strand === 1 ? '+' : '\u2212') + '). Purple = curated. <b>Click any bin to filter the table to it.</b>' +
+    (function(){
+      var q = SPIKES[GENE] || [];
+      if (!q.length) return hotN ? ' <span style="color:#a3352c">' + hotN + ' bin(s) exceed 4× the mean, unclassified.</span>' : '';
+      var c = function(v){ return q.filter(function(x){ return x.verdict === v; }).length; };
+      return ' <b>' + q.length + ' outlier bin' + (q.length === 1 ? '' : 's') + ':</b> ' +
+        '<span style="color:#a3352c">' + c('artifact') + ' artifact</span> (repeat or segdup, calling noise) · ' +
+        '<span style="color:#1c6340">' + c('real') + ' real</span> (GC/CpG-driven mutability) · ' +
+        '<span style="color:#9a6414">' + c('unexplained') + ' unexplained</span>. Hover a bin for its evidence.';
+    })();;
+}
+
+var QUEUE = [], SEQ = {}, PENDING = {}, SEQKEY = null, SHOWCODING = false, SPIKES = {};
+
+// One request per window, cached. Ensembl 500s intermittently, so a failure degrades to "no
+// sequence shown" rather than an empty chart.
+// Ensembl 500s intermittently -- we hit it repeatedly tonight. The first version cached the
+// FAILURE as null, and the guard  then returned that null forever: one
+// transient error meant the sequence never appeared for that window again. Cache only successes,
+// retry with backoff, and never let a failure become permanent.
+function fetchSeq(chrom, a, b, cb, attempt){
+  var k = chrom + ':' + a + '-' + b;
+  if (SEQ[k]) { cb(SEQ[k]); return; }
+  if (b - a > 2000) { SEQ[k] = null; cb(null); return; }
+  attempt = attempt || 0;
+  if (PENDING[k]) return;                     // one request in flight per window
+  PENDING[k] = 1;
+  fetch('https://rest.ensembl.org/sequence/region/human/' + String(chrom).replace('chr','') + ':' + a + '..' + b +
+        '?content-type=application/json', {headers:{accept:'application/json'}})
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){
+      delete PENDING[k];
+      if (j && j.seq) { SEQ[k] = j.seq.toUpperCase(); cb(SEQ[k]); }
+      else if (attempt < 3) { setTimeout(function(){ fetchSeq(chrom, a, b, cb, attempt + 1); }, 700 * (attempt + 1)); }
+      else cb(null);
+    })
+    .catch(function(){
+      delete PENDING[k];
+      if (attempt < 3) setTimeout(function(){ fetchSeq(chrom, a, b, cb, attempt + 1); }, 700 * (attempt + 1));
+      else cb(null);                          // still not cached -- a later click will try again
+    });
+}
+
+function drawQueue(){
+  var q = $('#qlab');
+  if (!QUEUE.length) { q.innerHTML = '<span class="qq">Right-click any variant above to queue it for AlphaGenome.</span>'; return; }
+  q.innerHTML = '<div class="qbar"><b>' + QUEUE.length + ' queued</b>' +
+    '<button class="qbtn" id="qcopy">Copy command</button>' +
+    '<button class="qbtn ghost" id="qclear">Clear</button>' +
+    '<span class="qq">' + QUEUE.map(function(r){ return r.rsid || r.pos; }).join(', ') + '</span></div>';
+  $('#qcopy').onclick = function(){
+    // A queue file the generator can consume. Nothing here calls AlphaGenome directly: a static
+    // page cannot hold an API key, and it should not.
+    var lines = QUEUE.map(qkey).join('\n');
+    var cmd = 'python scripts/make_panels.py --queue "' + QUEUE.map(function(r){ return (r.rsid || r.pos) + ':' + r.ref + r.alt; }).join(',') + '"';
+    navigator.clipboard.writeText(cmd + '\n\n# ' + lines.split('\n').join('\n# ')).then(function(){
+      $('#qcopy').textContent = 'Copied';
+      setTimeout(function(){ $('#qcopy').textContent = 'Copy command'; }, 1400);
+    });
+  };
+  $('#qclear').onclick = function(){ QUEUE = []; drawQueue(); drawZoomView(); };
+}
+
+/* Zoom: one bin, every variant drawn individually. Marks are conventional -- x is genomic
+   position, y is allele frequency on a log scale, because AF spans six orders of magnitude and a
+   linear axis would flatten every rare variant onto the floor. */
+function drawZoomView(){
+  var w = $('#zoomwrap');
+  if (!WIN) { w.hidden = true; return; }
+  w.hidden = false;
+  var g = GENES[GENE];
+  var k = g.chrom + ':' + WIN[0] + '-' + WIN[1];
+  if (SEQKEY !== k) { SEQKEY = k; fetchSeq(g.chrom, WIN[0], WIN[1], function(){ paintZoom(); }); }
+  paintZoom();
+}
+
+function paintZoom(){
+  var list = shown(), g = GENES[GENE];
+  var W = 1200, H = 235, PADL = 46, PADR = 10, PADT = 14, PADB = 66;
+  var s0 = WIN[0], e0 = WIN[1], span = Math.max(1, e0 - s0);
+  var plotW = W - PADL - PADR, plotH = H - PADT - PADB;
+  var LO = 1e-6, out = '';
+  var yOf = function(af){
+    var v = Math.max(LO, af == null ? LO : af);
+    return PADT + plotH * (1 - (Math.log10(v) - Math.log10(LO)) / (0 - Math.log10(LO)));
+  };
+  [1e-6, 1e-4, 1e-2, 1].forEach(function(v){
+    var y = yOf(v);
+    out += '<line x1="' + PADL + '" y1="' + y.toFixed(1) + '" x2="' + (W - PADR) + '" y2="' + y.toFixed(1) + '" stroke="var(--rule2)"/>';
+    out += '<text x="' + (PADL - 6) + '" y="' + (y + 3).toFixed(1) + '" font-size="9" fill="var(--faint)" text-anchor="end">' +
+           (v >= 0.01 ? (v * 100) + '%' : v.toExponential(0)) + '</text>';
+  });
+  out += '<text x="9" y="' + (PADT + plotH / 2) + '" font-size="9" fill="var(--faint)" transform="rotate(-90 9 ' +
+         (PADT + plotH / 2) + ')" text-anchor="middle">allele frequency</text>';
+
+  (g.exons || []).forEach(function(ex){
+    var p = Array.isArray(ex) ? ex : [ex.start, ex.end];
+    var a = Math.max(s0, Math.min(p[0], p[1])), b = Math.min(e0, Math.max(p[0], p[1]));
+    if (b <= a) return;
+    out += '<rect x="' + (PADL + (a - s0) / span * plotW).toFixed(1) + '" y="' + (PADT - 9) +
+           '" width="' + Math.max(2, (b - a) / span * plotW).toFixed(1) + '" height="7" fill="#4a7fae"/>';
+  });
+
+  // stems so a mark reads against its base, like a genome browser
+  var seq = SEQ[g.chrom + ':' + s0 + '-' + e0];
+  var seqY = PADT + plotH + 16, bw = plotW / span;
+  list.forEach(function(r){
+    var x = PADL + (r.pos - s0 + 0.5) * bw;
+    out += '<line x1="' + x.toFixed(1) + '" y1="' + yOf(r.af).toFixed(1) + '" x2="' + x.toFixed(1) +
+           '" y2="' + (PADT + plotH) + '" stroke="var(--rule)" stroke-width="0.8" pointer-events="none"/>';
+  });
+
+  function annotateSeq(seq, s0, PADL, bw, seqY, plotH, PADT){
+    var a = '', i;
+    // polypyrimidine tract: >=9 of any 10 consecutive bases are C or T. This is what the spliceosome
+    // branch-point machinery reads, and a variant that breaks it is the classic deep-intronic hit.
+    var py = seq.split('').map(function(c){ return (c === 'C' || c === 'T') ? 1 : 0; });
+    var runs = [], k = 0;
+    while (k < seq.length - 9) {
+      var sum = 0; for (i = k; i < k + 10; i++) sum += py[i];
+      if (sum >= 9) { var st = k; while (k < seq.length - 9 && sum >= 9) { k++; sum = 0; for (i = k; i < Math.min(seq.length, k + 10); i++) sum += py[i]; } runs.push([st, k + 9]); }
+      else k++;
+    }
+    runs.forEach(function(r){
+      a += '<rect x="' + (PADL + r[0] * bw).toFixed(1) + '" y="' + (PADT + plotH + 4) + '" width="' +
+           ((r[1] - r[0]) * bw).toFixed(1) + '" height="16" fill="#1f6fb2" opacity="0.13"/>';
+      a += '<text x="' + (PADL + (r[0] + r[1]) / 2 * bw).toFixed(1) + '" y="' + (seqY + 15) +
+           '" font-size="8.5" fill="#1f6fb2" text-anchor="middle">polypyrimidine ' + (r[1] - r[0]) + ' bp</text>';
+    });
+    // GT and AG dinucleotides: every one is a site a variant could create or destroy. Marking them
+    // is not a claim that any is used -- it is where to look.
+    for (i = 0; i < seq.length - 1; i++) {
+      var d = seq.substr(i, 2);
+      if (d !== 'GT' && d !== 'AG') continue;
+      a += '<rect x="' + (PADL + i * bw).toFixed(1) + '" y="' + (seqY - 11) + '" width="' + (2 * bw).toFixed(1) +
+           '" height="13" fill="none" stroke="' + (d === 'GT' ? '#9a6414' : '#1c8a6a') +
+           '" stroke-width="0.9" opacity="0.55"><title>' + d + ' at ' + (s0 + i).toLocaleString() +
+           ' \u2014 ' + (d === 'GT' ? 'potential donor' : 'potential acceptor') + ' dinucleotide</title></rect>';
+    }
+    return a;
+  }
+
+  if (seq && bw >= 3.2) {
+    out += annotateSeq(seq, s0, PADL, bw, seqY, plotH, PADT);
+    var COL = {A:'#1c8a6a', C:'#1f6fb2', G:'#9a6414', T:'#a3352c'};
+    for (var i = 0; i < seq.length; i++) {
+      out += '<text x="' + (PADL + (i + 0.5) * bw).toFixed(1) + '" y="' + seqY + '" font-size="' +
+             Math.min(12, Math.max(6, bw * 1.05)).toFixed(1) + '" font-family="ui-monospace,monospace" fill="' +
+             (COL[seq[i]] || '#888') + '" text-anchor="middle">' + seq[i] + '</text>';
+    }
+    (g.exons || []).forEach(function(ex){
+      var p2 = Array.isArray(ex) ? ex : [ex.start, ex.end];
+      [p2[0], p2[1]].forEach(function(bnd){
+        if (bnd < s0 || bnd > e0) return;
+        var bx = PADL + (bnd - s0 + 0.5) * bw;
+        out += '<line x1="' + bx.toFixed(1) + '" y1="' + PADT + '" x2="' + bx.toFixed(1) + '" y2="' + (seqY + 4) +
+               '" stroke="#4a7fae" stroke-width="1.6" stroke-dasharray="3 2"/>' +
+               '<text x="' + (bx + 3).toFixed(1) + '" y="' + (PADT + 10) + '" font-size="8.5" fill="#4a7fae">exon edge</text>';
+      });
+    });
+    out += '<text x="' + PADL + '" y="' + (seqY + 26) + '" font-size="9" fill="var(--faint)">GRCh38 reference, ' + seq.length +
+           ' bp \u00b7 <tspan fill="#9a6414">GT</tspan> potential donor \u00b7 <tspan fill="#1c8a6a">AG</tspan> potential acceptor \u00b7 shaded = polypyrimidine tract</text>';
+  } else if (seq) {
+    out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">window too wide to draw bases (' + span + ' bp) \u2014 zoom to under ~350 bp</text>';
+  } else {
+    out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">' + (PENDING[g.chrom + ':' + s0 + '-' + e0] ? 'fetching reference sequence…' : 'sequence unavailable — click the bin again to retry') + '</text>';
+  }
+
+  list.forEach(function(r, k){
+    var x = PADL + (r.pos - s0 + 0.5) * bw, y = yOf(r.af);
+    var p = PANELS[pkey(r)], q = QUEUE.indexOf(r) >= 0;
+    out += '<circle data-k="' + k + '" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' +
+           (q ? 6 : p ? 5 : 3.4) + '" fill="' + (q ? 'var(--warn)' : p ? 'var(--accent)' : (r.curated ? 'var(--cur)' : '#9aa6b2')) +
+           '" opacity="' + (q || p ? 0.95 : 0.65) + '">' +
+           '<title>' + (r.rsid || r.pos) + '  ' + r.ref + '>' + r.alt + '\nchr' + String(g.chrom).replace('chr','') + ':' +
+           r.pos.toLocaleString() + '\nAF ' + (r.af == null ? 'none' : r.af.toExponential(2)) + '\n' + consOf(r) +
+           (p ? '\nAlphaGenome ' + p.splice_log2fc.toFixed(3) : '\nno panel') +
+           '\n\nleft-click: open   right-click: queue</title></circle>';
+  });
+
+  out += '<text x="' + PADL + '" y="' + (H - 5) + '" font-size="9.5" fill="var(--faint)">' + s0.toLocaleString() + '</text>';
+  out += '<text x="' + (W - PADR) + '" y="' + (H - 5) + '" font-size="9.5" fill="var(--faint)" text-anchor="end">' + e0.toLocaleString() + '</text>';
+  out += '<text x="' + (PADL + plotW / 2) + '" y="' + (H - 5) + '" font-size="9.5" fill="var(--faint)" text-anchor="middle">' +
+         span + ' bp \u00b7 ' + list.length + ' variants</text>';
+
+  var sv = $('#zoom'); sv.setAttribute('viewBox', '0 0 ' + W + ' ' + H); sv.innerHTML = out;
+  sv.querySelectorAll('circle').forEach(function(el){
+    var r = list[+el.getAttribute('data-k')];
+    el.addEventListener('click', function(){ SEL = r; render(); detail(r); });
+    el.addEventListener('contextmenu', function(e){
+      e.preventDefault();
+      var i = QUEUE.indexOf(r);
+      if (i >= 0) QUEUE.splice(i, 1); else QUEUE.push(r);
+      drawQueue(); paintZoom();
+    });
+  });
+  $('#zlab').innerHTML = '<b>Zoom \u00b7 chr' + String(g.chrom).replace('chr','') + ':' + s0.toLocaleString() + '\u2013' + e0.toLocaleString() +
+    '</b> \u2014 one circle per variant, x is position, y is allele frequency (log). ' +
+    '<span style="color:var(--accent)">blue</span> has a panel, <span style="color:var(--cur)">purple</span> curated, ' +
+    '<span style="color:var(--warn)">amber</span> queued. Left-click opens, right-click queues.';
+  drawQueue();
+}
+
+function drawChips(list){
+  var all = forGene(), n = $('#chips'); n.innerHTML = '';
+  function chip(label, count, on, fn){
+    var b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.setAttribute('aria-pressed', String(on));
+    b.innerHTML = label + '<span class="n">' + count.toLocaleString() + '</span>';
+    b.onclick = fn; n.appendChild(b);
+  }
+  chip('All', all.length, !CONS && !BAND && !ONLY && !WIN, function(){ CONS = null; BAND = null; ONLY = null; WIN = null; BINSEL = null; render(); });
+  if (WIN) chip('window ' + WIN[0].toLocaleString() + '-' + WIN[1].toLocaleString(), shown().length, true,
+    function(){ WIN = null; BINSEL = null; render(); });
+  [['SpliceAI ≥0.8',0.8],['SpliceAI ≥0.5',0.5],['SpliceAI ≥0.2',0.2]].forEach(function(t){
+    var c = all.filter(function(r){ return r.spliceai != null && r.spliceai >= t[1]; }).length;
+    if (c) chip(t[0], c, ONLY === 'sa' + t[1], function(){ ONLY = (ONLY === 'sa'+t[1]) ? null : 'sa'+t[1]; CONS=null; BAND=null; render(); });
+  });
+  var nc = (LOADED[GENE] || []).filter(function(r){ return r.coding; }).length;
+  if (nc) chip(SHOWCODING ? 'hide ' + nc.toLocaleString() + ' coding' : 'show ' + nc.toLocaleString() + ' coding',
+    nc, SHOWCODING, function(){ SHOWCODING = !SHOWCODING; render(); });
+  var np = all.filter(function(r){ return PANELS[pkey(r)]; }).length;
+  if (np) chip('has AlphaGenome panel', np, ONLY === 'panel', function(){ ONLY = (ONLY === 'panel') ? null : 'panel'; CONS = null; BAND = null; render(); });
+  var bands = ['common ≥5%','low-freq 1–5%','rare 0.1–1%','very rare <0.1%'];
+  bands.forEach(function(b){
+    var c = all.filter(function(r){ return band(r) === b; }).length;
+    if (c) chip(b, c, BAND === b, function(){ BAND = (BAND === b) ? null : b; CONS = null; render(); });
+  });
+  var byC = {};
+  all.forEach(function(r){ var k = consOf(r); byC[k] = (byC[k]||0)+1; });
+  Object.keys(byC).sort(function(a,b){ return byC[b]-byC[a]; }).slice(0, 9).forEach(function(k){
+    chip(k, byC[k], CONS === k, function(){ CONS = (CONS === k) ? null : k; BAND = null; render(); });
+  });
+  var nc = all.filter(function(r){ return r.curated; }).length;
+  if (nc) chip('curated only', nc, ONLY === 'curated', function(){ ONLY = (ONLY === 'curated') ? null : 'curated'; CONS = null; BAND = null; render(); });
+}
+
+function drawHead(){
+  var hr = $('#hr'); hr.innerHTML = '';
+  COLS.forEach(function(c){
+    var th = document.createElement('th');
+    if (c.num) th.className = 'n';
+    th.textContent = c.label + (SORT.k === c.k ? (SORT.d === 1 ? ' ▲' : ' ▼') : ' ↕');
+    th.onclick = function(){
+      if (SORT.k === c.k) SORT.d = -SORT.d; else { SORT.k = c.k; SORT.d = c.num ? -1 : 1; }
+      render();
+    };
+    hr.appendChild(th);
+  });
+}
+
+function renderList(list){
+  var col = COLS.filter(function(c){ return c.k === SORT.k; })[0] || COLS[4];
+  var sorted = list.slice().sort(function(a,b){
+    var x = col.get(a), y = col.get(b);
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;            // blanks sink in BOTH directions
+    if (y == null) return -1;
+    if (typeof x === 'number') return (x - y) * SORT.d;
+    return String(x).localeCompare(String(y)) * SORT.d;
+  });
+  var cap = sorted.slice(0, 3000);
+  var tb = $('#tb'); tb.innerHTML = '';
+  cap.forEach(function(r){
+    var tr = document.createElement('tr');
+    if (r.curated) tr.className = 'cur';
+    if (SEL && SEL.rsid === r.rsid) tr.className += ' sel';
+    tr.innerHTML =
+      '<td class="mono">' + r.rsid + '</td>' +
+      '<td class="n mono">' + r.pos.toLocaleString() + '</td>' +
+      '<td class="mono">' + r.ref + '&gt;' + r.alt + '</td>' +
+      '<td>' + consOf(r) + '</td>' +
+      '<td class="n">' + COLS[4].fmt(r) + '</td>' +
+      '<td><span class="tag">' + band(r) + '</span></td>' +
+      '<td>' + (r.curated ? '<span class="tag" style="color:#7a3fa6;border-color:#7a3fa6">curated</span>' : 'gnomAD') + '</td>' +
+      '<td class="n">' + COLS[7].fmt(r) + '</td>' +
+      '<td class="n">' + COLS[8].fmt(r) + '</td>' +
+      '<td class="n">' + COLS[9].fmt(r) + '</td>';
+    tr.onclick = function(){ SEL = r; render(); detail(r); };
+    tb.appendChild(tr);
+  });
+  if (!cap.length) tb.innerHTML = '<tr><td colspan="7" class="empty">Nothing matches this filter.</td></tr>';
+  $('#count').textContent = sorted.length.toLocaleString() + ' of ' +
+    forGene().length.toLocaleString() + ' in ' + GENE +
+    (sorted.length > cap.length ? ' · showing first ' + cap.length.toLocaleString() : '') +
+    ' · sorted by ' + col.label + ' ' + (SORT.d === 1 ? 'asc' : 'desc');
+  drawStrip(forGene(), sorted);
+}
+
+function detail(r){
+  var d = $('#det');
+  // Five curated rows carry a reference base that is not the base at that coordinate, and all five
+  // still have old figures. Say so on the panel rather than letting a reader trust it.
+  var mism = (window.REFBAD || {})[r.rsid];
+  var kv = [['gene', r.gene], ['position', r.chrom + ':' + r.pos.toLocaleString()],
+            ['change', r.ref + '>' + r.alt], ['HGVS', r.hgvs || '—'],
+            ['consequence', r.consequence || '—'], ['gnomAD AF', COLS[4].fmt(r)],
+            ['band', band(r)], ['ClinVar', r.clinvar || '—'],
+            ['AlphaGenome Δ', r.delta == null ? 'not computed' : r.delta.toExponential(3)]];
+  d.innerHTML = '<div class="det">' +
+    (mism ? '<div style="border-left:3px solid #c9524a;background:rgba(163,53,44,.10);padding:8px 11px;margin-bottom:10px;font-size:12.5px">' +
+      '<b style="color:#c9524a">Do not trust any figure for this variant.</b> Its stated reference base is not the base at that ' +
+      'coordinate (' + mism + '), so the prediction was run on a variant that does not exist there.</div>' : '') +
+    '<b>' + r.rsid + '</b> &nbsp;<a href="https://gnomad.broadinstitute.org/variant/' +
+    [r.chrom.replace('chr',''), r.pos, r.ref, r.alt].join('-') + '?dataset=gnomad_r4" target="_blank" rel="noopener">gnomAD</a>' +
+    ' &middot; <a href="https://www.ncbi.nlm.nih.gov/snp/' + r.rsid + '" target="_blank" rel="noopener">dbSNP</a>' +
+    ' &middot; <a href="https://www.ncbi.nlm.nih.gov/clinvar/?term=' + r.rsid + '" target="_blank" rel="noopener">ClinVar</a>' +
+    '<div class="kv" style="margin-top:9px">' +
+    kv.map(function(p){ return '<b>' + p[0] + '</b><span>' + p[1] + '</span>'; }).join('') + '</div>' +
+    (function(){ var p = PANELS[pkey(r)];
+      if (!p) return '';
+      return '<p class="slab" style="margin-top:8px;color:#1f6fb2">Corrected pipeline &middot; 667 tracks &middot; splice-site readout &middot; reference base verified &middot; splice ' +
+        p.splice_log2fc.toFixed(3) + ' log2FC</p><img src="' + p.rich_img + '" alt="AlphaGenome panel">'; })() +
+    (r.rich ? '<img src="' + r.rich + '" alt="AlphaGenome panel for ' + r.rsid + '">' +
+      '<p class="slab" style="margin-top:6px">AlphaGenome PREDICTION, not a measurement. ' +
+      'Five of the eleven curated variants currently carry a reference base that does not match the genome — ' +
+      'check before trusting a panel.</p>' : '') + '</div>';
+  d.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function render(){
+  drawHead(); drawChips(); renderList(shown()); drawZoomView();
+  var all = forGene(), g = GENES[GENE] || {};
+  var withAF = all.filter(function(r){ return r.af != null; }).length;
+  $('#honest').innerHTML = '<b>What this page can and cannot tell you.</b> ' +
+    GENE + ' carries ' + all.length.toLocaleString() + ' loaded variants; ' + withAF.toLocaleString() +
+    ' have a gnomAD allele frequency and ' + (all.length - withAF).toLocaleString() + ' do not. ' +
+    'Frequency, SpliceAI, phyloP and CADD are all from gnomAD. Nothing here is a clinical assertion. ' +
+    (g.pull_scope ? 'This gene was pulled ' + g.pull_scope + '. ' : '') +
+    (String(g.chrom) === 'chrX' ? '<b>chrX: males are hemizygous, so allele frequency is computed over mixed ploidy and the frequency bands ' +
+      'below are calibrated for autosomes.</b> ' : '') +
+    'The default view hides coding variants so all genes show the same population.';
+}
+
+var _t = null;
+$('#find').addEventListener('input', function(){ clearTimeout(_t); _t = setTimeout(render, 180); });
+</script>
+</div></body></html>

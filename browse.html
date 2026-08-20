@@ -89,12 +89,14 @@ a{color:var(--accent)}
 var GENES = {}, ROWS = [], PANELS = {}, GENE = null, SORT = {k:'af', d:-1}, CONS = null, BAND = null, ONLY = null, SEL = null;
 var $ = function (s) { return document.querySelector(s); };
 
+function colOf(k){ for (var i=0;i<COLS.length;i++) if (COLS[i].k===k) return COLS[i]; return null; }
+function cellOf(c, r){ return c.fmt ? c.fmt(r) : (c.get(r) == null ? '&mdash;' : c.get(r)); }
 var COLS = [
-  {k:'rsid',  label:'rsID',        get:function(r){return r.rsid;}},
-  {k:'pos',   label:'position',    num:true, get:function(r){return r.pos;}, fmt:function(r){return r.pos.toLocaleString();}},
+  {k:'rsid',  label:'rsID',        cls:'mono',   get:function(r){return r.rsid;}},
+  {k:'pos',   label:'position',    cls:'n mono', num:true, get:function(r){return r.pos;}, fmt:function(r){return r.pos.toLocaleString();}},
   // "CAAAAAAAAAAAAA>C" is unreadable and gives no clue it is a 13-base deletion. Show the raw
   // alleles truncated, and the interpretation in its own sortable column.
-  {k:'change',label:'change',      get:function(r){return r.ref+'>'+r.alt;},
+  {k:'change',label:'change',      cls:'mono',   get:function(r){return r.ref+'>'+r.alt;},
               fmt:function(r){ var s=r.ref+'>'+r.alt;
                 return s.length<=16 ? s : '<span title="'+s+'">'+r.ref.slice(0,7)+'…>'+r.alt.slice(0,7)+'</span>'; }},
   {k:'vtype', label:'type',        get:function(r){return vtype(r).kind;},
@@ -107,8 +109,10 @@ var COLS = [
   {k:'cons',  label:'consequence', get:function(r){return consOf(r);}},
   {k:'af',    label:'gnomAD AF',   num:true, get:function(r){return r.af==null?null:r.af;},
               fmt:function(r){return r.af==null?'—':(r.af>=0.001?(r.af*100).toFixed(2)+'%':(r.af*100).toExponential(1)+'%');}},
-  {k:'band',  label:'band',        get:function(r){return band(r);}},
-  {k:'src',   label:'source',      get:function(r){return r.curated?'curated':'gnomAD';}},
+  {k:'band',  label:'band',        get:function(r){return band(r);},
+              fmt:function(r){return '<span class="tag">'+band(r)+'</span>';}},
+  {k:'src',   label:'source',      get:function(r){return r.curated?'curated':'gnomAD';},
+              fmt:function(r){return r.curated?'<span class="tag" style="color:#7a3fa6;border-color:#7a3fa6">curated</span>':'gnomAD';}},
   {k:'spliceai', label:'SpliceAI', num:true, get:function(r){return r.spliceai==null?null:r.spliceai;},
               fmt:function(r){ if(r.spliceai==null) return '&mdash;';
                 var c = r.spliceai>=0.8?'var(--neg)':r.spliceai>=0.5?'var(--warn)':'var(--faint)';
@@ -696,7 +700,7 @@ function drawHead(){
 }
 
 function renderList(list){
-  var col = COLS.filter(function(c){ return c.k === SORT.k; })[0] || COLS[4];
+  var col = colOf(SORT.k) || colOf('af');
   var sorted = list.slice().sort(function(a,b){
     var x = col.get(a), y = col.get(b);
     if (x == null && y == null) return 0;
@@ -711,17 +715,14 @@ function renderList(list){
     var tr = document.createElement('tr');
     if (r.curated) tr.className = 'cur';
     if (SEL && SEL.rsid === r.rsid) tr.className += ' sel';
-    tr.innerHTML =
-      '<td class="mono">' + r.rsid + '</td>' +
-      '<td class="n mono">' + r.pos.toLocaleString() + '</td>' +
-      '<td class="mono">' + r.ref + '&gt;' + r.alt + '</td>' +
-      '<td>' + consOf(r) + '</td>' +
-      '<td class="n">' + COLS[4].fmt(r) + '</td>' +
-      '<td><span class="tag">' + band(r) + '</span></td>' +
-      '<td>' + (r.curated ? '<span class="tag" style="color:#7a3fa6;border-color:#7a3fa6">curated</span>' : 'gnomAD') + '</td>' +
-      '<td class="n">' + COLS[7].fmt(r) + '</td>' +
-      '<td class="n">' + COLS[8].fmt(r) + '</td>' +
-      '<td class="n">' + COLS[9].fmt(r) + '</td>';
+    // Built FROM COLS. The header already came from COLS; the row was hand-written with
+    // hardcoded positions AND hardcoded COLS[4]/[7]/[8]/[9] lookups, so inserting the 'type'
+    // column shifted every index, COLS[4] became 'consequence' (which has no fmt), and the whole
+    // table threw "COLS[4].fmt is not a function" -- leaving the page stuck on "loading ...".
+    // One source of column order now, for both header and body.
+    tr.innerHTML = COLS.map(function(c){
+      return '<td' + (c.cls ? ' class="' + c.cls + '"' : c.num ? ' class="n"' : '') + '>' + cellOf(c, r) + '</td>';
+    }).join('');
     tr.onclick = function(){ SEL = r; render(); detail(r); };
     tb.appendChild(tr);
   });
@@ -740,7 +741,7 @@ function detail(r){
   var mism = (window.REFBAD || {})[r.rsid];
   var kv = [['gene', r.gene], ['position', r.chrom + ':' + r.pos.toLocaleString()],
             ['change', r.ref + '>' + r.alt], ['HGVS', r.hgvs || '—'],
-            ['consequence', r.consequence || '—'], ['gnomAD AF', COLS[4].fmt(r)],
+            ['consequence', r.consequence || '—'], ['gnomAD AF', cellOf(colOf('af'), r)],
             ['band', band(r)], ['ClinVar', r.clinvar || '—'],
             ['AlphaGenome Δ', r.delta == null ? 'not computed' : r.delta.toExponential(3)]];
   d.innerHTML = '<div class="det">' +

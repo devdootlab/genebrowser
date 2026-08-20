@@ -137,12 +137,12 @@ already shipped 40 figures.
 
 ## Known-wrong
 
-1. **The deep-intronic peak selection does not do what its docstring says.** `--bucket peak` claims
-   to pick "strongest SpliceAI, then commonest" per peak; none of the 16 picks has a SpliceAI score
-   and most have no AF, so every sort key was 0 and it silently fell through to distance order. The
-   16 panels in `data/panels_peak.json` are real and preflighted, but **the selection is not what is
-   documented and the results should not be read as a finding** until it is fixed and run against a
-   matched null.
+1. **The deep-intronic peak result is partly circular.** `--bucket peak` picks the highest-SpliceAI
+   variant in each peak, then reports that AlphaGenome scores it highly. Since the two agree at
+   r = 0.72 overall (r = 0.755 on these 16 picks), that mostly re-measures the known correlation
+   rather than showing the peak carries signal. Use `--peakpick centre` to take the variant nearest
+   the peak midpoint regardless of any score — that is the version that asks the actual question.
+   There is still no matched null, so treat `data/panels_peak.json` as a shortlist, not a finding.
 2. **Exons render empty in the density strip.** Coding is hidden by default, but the strip uses the
    filtered list for the backdrop as well as the overlay.
 3. **`--queue` is not implemented.** The right-click queue copies a command `make_panels.py` cannot

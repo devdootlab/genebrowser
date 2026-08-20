@@ -96,7 +96,7 @@ def buckets_for(gene, genes, variants):
     return out, ex, g
 
 
-def peaks_for(bucket_deep, min_dist=100, binw=200):
+def peaks_for(bucket_deep, min_dist=100, binw=200, mode="auto"):
     """Density peaks in DEEP intronic sequence -- the spikes in the browser's strip, minus
     everything within `min_dist` of a splice boundary.
 
@@ -139,15 +139,52 @@ def peaks_for(bucket_deep, min_dist=100, binw=200):
     picks = []
     for run in runs:
         vs = [v for b in run for v in bins[b]]
-        # representative: strongest splice prediction, then commonest. Picking the rarest would
-        # select for singletons, which is what a calling artefact looks like.
-        vs = sorted(vs, key=lambda x: (-(x.get("spliceai") or 0), -(x.get("af") or 0)))
-        r = dict(vs[0])
+        lo, hi = run[0] * binw, (run[-1] + 1) * binw
+        centre = (lo + hi) // 2
+
+        # Representative, chosen in EXPLICIT TIERS, recording which tier was used.
+        #
+        # This used to be one sort: (-(spliceai or 0), -(af or 0)). That WORKED -- 13 of 14 picks
+        # are unchanged by the rewrite below. It was reported here as broken on the strength of
+        # `spliceai_gnomad` being null on all 16 rows of data/panels_peak.json, but that field is
+        # only written in the --control path and was simply absent for this bucket. Absent field,
+        # not absent data: every variant in every one of these peaks has a SpliceAI score.
+        #
+        # The tiers exist anyway, for the reason the false alarm pointed at: `or 0` collapses "no
+        # score" and "scores zero" into the same key, so on a gene where the scores really are
+        # missing this would degrade to `deep`'s ordering -- distance from the splice site,
+        # ASCENDING, the worst possible choice for a deep-intronic question -- with no error and
+        # nothing in the output to show it had happened. Now the tier is chosen explicitly and
+        # written to the manifest as `picked_by`.
+        #
+        # NOTE the "auto"/"spliceai" tiers make the pick SpliceAI-driven, so AlphaGenome agreeing
+        # with SpliceAI on those picks is partly circular (r = 0.72 overall, 0.755 on these 16).
+        # Use --peakpick centre to ask whether the PEAK carries signal independently of SpliceAI.
+        scored = [v for v in vs if v.get("spliceai") is not None] if mode in ("auto", "spliceai") else []
+        withaf = [v for v in vs if v.get("af") is not None] if mode in ("auto", "af") else []
+        if scored:
+            pick = max(scored, key=lambda x: (x["spliceai"], x.get("af") or 0, -x["pos"]))
+            why = "spliceai"
+        elif withaf:
+            pick = max(withaf, key=lambda x: (x["af"], -x["pos"]))
+            why = "af"
+        else:
+            # Nothing in this peak carries either score. Fall back to the variant nearest the
+            # peak's CENTRE -- the most representative position in the window, and unbiased with
+            # respect to splice distance. The old accidental fallback picked the variant closest to
+            # an exon, which is the single worst choice for a deep-intronic question.
+            pick = min(vs, key=lambda x: (abs(x["pos"] - centre), x["pos"]))
+            why = "centre" if mode == "centre" else "centre (no SpliceAI or AF anywhere in this peak)"
+
+        r = dict(pick)
         r["_peak_n"] = len(vs)
-        r["_peak_start"] = run[0] * binw
-        r["_peak_end"] = (run[-1] + 1) * binw
+        r["_peak_start"] = lo
+        r["_peak_end"] = hi
         r["_peak_bins"] = len(run)
         r["_peak_med"] = med
+        r["_peak_scored"] = len(scored)
+        r["_peak_withaf"] = len(withaf)
+        r["_picked_by"] = why
         picks.append(r)
     picks.sort(key=lambda x: -x["_peak_n"])
     return picks
@@ -292,7 +329,14 @@ def draw(v, g, gene, model, dna_client, genome, outdir):
             "splice_log2fc": splice_delta, "splice_maxabsdiff": splice_absdiff,
             "splice_track_index": sti, "n_splice_tracks": int(SR.shape[1]),
             "track_index": ti, "n_tracks": int(RV.shape[1]), "track": track_name,
-            "renderer": RENDERER, "rich_img": os.path.relpath(png, ROOT).replace("\\", "/")}
+            "renderer": RENDERER, "rich_img": os.path.relpath(png, ROOT).replace("\\", "/"),
+            # Provenance for --bucket peak. A result whose selection rule cannot be recovered from
+            # the manifest is not reproducible, and this selection has already silently changed
+            # rule once. Absent for every other bucket.
+            **({"picked_by": v["_picked_by"], "peak_start": v["_peak_start"],
+                "peak_end": v["_peak_end"], "peak_n": v["_peak_n"],
+                "peak_median": v["_peak_med"], "peak_n_scored": v["_peak_scored"],
+                "peak_n_withaf": v["_peak_withaf"]} if "_picked_by" in v else {})}
 
 
 def main():
@@ -301,6 +345,12 @@ def main():
     ap.add_argument("--bucket", default="canonical", choices=["canonical", "spliceregion", "deep", "spliceai", "peak"])
     ap.add_argument("--peakmin", type=int, default=100, help="min bp from any splice boundary for --bucket peak")
     ap.add_argument("--peakbin", type=int, default=200, help="window width for --bucket peak")
+    # "auto" ranks by SpliceAI, which makes the pick SpliceAI-driven and any AlphaGenome/SpliceAI
+    # agreement partly circular (they correlate at r=0.72). "centre" takes the variant nearest the
+    # peak middle regardless of any score -- the unbiased pick, and the one that actually asks
+    # whether the PEAK carries signal rather than whether SpliceAI and AlphaGenome agree again.
+    ap.add_argument("--peakpick", default="auto", choices=["auto", "spliceai", "af", "centre"],
+                    help="how to choose the representative variant in each peak")
     ap.add_argument("--spliceai", type=float, default=0.5, help="threshold when --bucket spliceai")
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--dry", action="store_true")
@@ -398,7 +448,7 @@ def main():
             pool.sort(key=lambda x: -x["spliceai"])
             b["spliceai"] = pool
         if a.bucket == "peak":
-            b["peak"] = peaks_for(b["deep"], a.peakmin, a.peakbin)
+            b["peak"] = peaks_for(b["deep"], a.peakmin, a.peakbin, a.peakpick)
         picked = b[a.bucket][: a.limit]
         log(f"\n=== {gene} · bucket {a.bucket} · {len(b[a.bucket])} available, taking {len(picked)} ===")
         if a.bucket == "spliceai":
@@ -408,6 +458,13 @@ def main():
                 log(f"    peak {_v['_peak_start']:,}-{_v['_peak_end']:,} ({_v['_peak_bins']}x{a.peakbin}bp)  "
                     f"{_v['_peak_n']} variants vs median {_v['_peak_med']}  "
                     f"{_v['_dist']:,} bp from the nearest splice site")
+                # Say how the representative was chosen and how much there was to choose from.
+                # The previous version printed neither, which is why a tiebreak that had silently
+                # become "closest to an exon" survived a 16-gene run and a written-up result.
+                _note = ("SpliceAI and AF not consulted (--peakpick centre)" if a.peakpick == "centre"
+                         else f"{_v['_peak_scored']} of {_v['_peak_n']} have SpliceAI, "
+                              f"{_v['_peak_withaf']} have an AF")
+                log(f"      picked by {_v['_picked_by']}  ({_note})")
         log(f"    other buckets: canonical {len(b['canonical'])}, spliceregion {len(b['spliceregion'])}, "
             f"deep {len(b['deep'])}, indels skipped {len(b['skipped_indel'])}, exonic skipped {len(b['skipped_exonic'])}")
         for v in picked:
@@ -442,7 +499,11 @@ def main():
             log("  *** WARNING: canonical +-1/+-2 variants destroy a splice site. A median effect")
             log("  *** below 0.01 means the PIPELINE is wrong, not the biology. Do not trust other buckets.")
     if not a.dry:
-        p = os.path.join(ROOT, f"data/panels_{a.bucket}.json")
+        # --peakpick changes WHICH variant is tested, so it is a different experiment and gets
+        # its own manifest. Sharing one filename let the centre run silently replace the
+        # SpliceAI run, leaving 14 figures on disk that no manifest claimed.
+        _suffix = f"_{a.peakpick}" if (a.bucket == "peak" and a.peakpick != "auto") else ""
+        p = os.path.join(ROOT, f"data/panels_{a.bucket}{_suffix}.json")
         # MERGE, do not overwrite. One --gene call per gene is the normal way to run this, and a
         # plain overwrite meant a 16-gene loop drew 16 figures and recorded 1: the PNGs were on disk
         # with nothing in the manifest pointing at them, which is a silent loss, not an error.

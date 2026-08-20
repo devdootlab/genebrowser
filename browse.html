@@ -46,6 +46,14 @@ tr.sel td{background:rgba(31,111,178,.13)}
 a{color:var(--accent)}
 .empty{padding:22px;color:var(--faint);text-align:center}
 #zoomwrap{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:9px 11px;margin:12px 0}
+.zbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 7px}
+.zbar button{font:inherit;font-size:12px;padding:3px 9px;border:1px solid var(--rule);border-radius:5px;
+  background:var(--bg);color:var(--ink);cursor:pointer}
+.zbar button:hover{border-color:var(--accent);color:var(--accent)}
+.zbar button:disabled{opacity:.4;cursor:default;border-color:var(--rule);color:var(--faint)}
+#zread{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.zhint{font-size:11px;color:var(--faint);margin-left:auto}
+#zoom{cursor:crosshair}
 #zoom{width:100%;height:235px;display:block}
 #zoom circle{cursor:pointer}
 #zoom circle:hover{stroke:var(--ink);stroke-width:1.5}
@@ -69,6 +77,18 @@ a{color:var(--accent)}
 
 <div id="zoomwrap" hidden>
   <p class="slab" id="zlab"></p>
+  <!-- The panel used to tell you to "zoom to under ~350 bp" while offering no way to do it: WIN was
+       set in exactly one place, a density-strip bin click, and could never be narrowed after that. -->
+  <div class="zbar">
+    <button id="zout" title="zoom out (or scroll down over the plot)">− out</button>
+    <button id="zin"  title="zoom in (or scroll up over the plot)">+ in</button>
+    <button id="zpl"  title="pan left (or press ←)">◀</button>
+    <button id="zpr"  title="pan right (or press →)">▶</button>
+    <button id="zbases" title="narrow to the middle 300 bp so the reference sequence can be drawn">show bases</button>
+    <button id="zwhole" title="back to the whole gene">whole gene</button>
+    <span id="zread"></span>
+    <span class="zhint">drag across the plot to select a region</span>
+  </div>
   <svg id="zoom" preserveAspectRatio="none" role="img"></svg>
   <p class="slab" id="qlab"></p>
 </div>
@@ -271,6 +291,11 @@ function shown(){
      sitting on an 18-base poly-T tract: a homopolymer where sequencers slip and aligners
      misplace reads. That is a basecalling pile-up, not biology, and it dominates the chart. */
 var BINSEL = null, WIN = null;
+// Plot geometry from the last paintZoom, so pointer x can be mapped back to a coordinate.
+// The SVG is preserveAspectRatio="none" with a viewBox, so client px must be scaled into
+// viewBox units first -- using clientX directly is wrong at every width but one.
+var ZGEO = null;
+var MINWIN = 40;   // below this the bases are unreadable and the AF axis is meaningless
 
 function drawStrip(list, sel){
   var g = GENES[GENE]; if (!g) return;
@@ -396,10 +421,38 @@ var QUEUE = [], SEQ = {}, PENDING = {}, SEQKEY = null, SHOWCODING = false, SPIKE
 // FAILURE as null, and the guard  then returned that null forever: one
 // transient error meant the sequence never appeared for that window again. Cache only successes,
 // retry with backoff, and never let a failure become permanent.
+/* Sequence is cached in BLOCKS, not per window.
+   Keyed by the exact window, every zoom and every pan was a fresh Ensembl round-trip for a range
+   overlapping the one already in hand -- fine when the only way to move was a strip-bin click, a
+   fetch storm now that there are zoom and pan buttons. A block covers the window with padding, so
+   zooming and panning inside it costs nothing. */
+var SEQBLK = 4096;
+function blockFor(chrom, a, b) {
+  for (var k in SEQ) {
+    if (!SEQ[k]) continue;
+    var m = /^(.+):(\d+)-(\d+)$/.exec(k);
+    if (!m || m[1] !== String(chrom)) continue;
+    var lo = +m[2], hi = +m[3];
+    if (a >= lo && b <= hi) return SEQ[k].slice(a - lo, b - lo + 1);
+  }
+  return null;
+}
+function seqFor(chrom, a, b) { return blockFor(chrom, a, b); }
+
 function fetchSeq(chrom, a, b, cb, attempt){
+  // widen to a block, so neighbouring windows are already covered
+  if (!attempt && (b - a + 1) < SEQBLK / 2) {
+    if (blockFor(chrom, a, b)) { cb(blockFor(chrom, a, b)); return; }
+    // Snap to a FIXED GRID. Centring the block on the window gave every pan its own key, so the
+    // one-request-per-key guard never matched and six pans put six overlapping requests in flight.
+    // On a grid of SEQBLK/2 steps, any window under SEQBLK/2 wide falls inside a single block, and
+    // neighbouring windows resolve to the same key -- so the guard works and panning is free.
+    var step = SEQBLK / 2, lo = Math.floor(a / step) * step, hi = lo + SEQBLK - 1;
+    a = lo; b = hi;
+  }
   var k = chrom + ':' + a + '-' + b;
   if (SEQ[k]) { cb(SEQ[k]); return; }
-  if (b - a > 2000) { SEQ[k] = null; cb(null); return; }
+  if (b - a > 5000) { SEQ[k] = null; cb(null); return; }
   attempt = attempt || 0;
   if (PENDING[k]) return;                     // one request in flight per window
   PENDING[k] = 1;
@@ -447,8 +500,13 @@ function drawZoomView(){
   if (!WIN) { w.hidden = true; return; }
   w.hidden = false;
   var g = GENES[GENE];
+  // Nothing to fetch if the window is too wide to draw bases anyway, or if a cached block
+  // already covers it. Both checks exist because zoom and pan now fire this constantly.
   var k = g.chrom + ':' + WIN[0] + '-' + WIN[1];
-  if (SEQKEY !== k) { SEQKEY = k; fetchSeq(g.chrom, WIN[0], WIN[1], function(){ paintZoom(); }); }
+  var wide = (WIN[1] - WIN[0]) > 380;
+  if (!wide && SEQKEY !== k && !seqFor(g.chrom, WIN[0], WIN[1])) {
+    SEQKEY = k; fetchSeq(g.chrom, WIN[0], WIN[1], function(){ paintZoom(); });
+  }
   paintZoom();
 }
 
@@ -483,7 +541,7 @@ function paintZoom(){
   });
 
   // stems so a mark reads against its base, like a genome browser
-  var seq = SEQ[g.chrom + ':' + s0 + '-' + e0];
+  var seq = seqFor(g.chrom, s0, e0);
   var seqY = PADT + plotH + 16, bw = plotW / span;
   list.forEach(function(r){
     var x = PADL + (r.pos - s0 + 0.5) * bw;
@@ -580,9 +638,10 @@ function paintZoom(){
            ((g.exons || []).length < 2 ? '<tspan fill="var(--warn)">this gene has no introns (single exon)</tspan> \u00b7 ' : '') +
            '<tspan fill="#9a6414">GT</tspan> donor \u00b7 <tspan fill="#1c8a6a">AG</tspan> acceptor (transcript orientation) \u00b7 shaded = polypyrimidine tract</text>';
   } else if (seq) {
-    out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">window too wide to draw bases (' + span + ' bp) \u2014 zoom to under ~350 bp</text>';
+    out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">' + span.toLocaleString() +
+           ' bp \u2014 too wide to draw bases. Drag across the plot, scroll to zoom, or press \u201cshow bases\u201d above.</text>';
   } else {
-    out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">' + (PENDING[g.chrom + ':' + s0 + '-' + e0] ? 'fetching reference sequence…' : 'sequence unavailable — click the bin again to retry') + '</text>';
+    out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">' + (Object.keys(PENDING).length ? 'fetching reference sequence…' : 'sequence unavailable — zoom again to retry') + '</text>';
   }
 
   list.forEach(function(r, k){
@@ -621,6 +680,7 @@ function paintZoom(){
   out += '<text x="' + (PADL + plotW / 2) + '" y="' + (H - 5) + '" font-size="9.5" fill="var(--faint)" text-anchor="middle">' +
          span + ' bp \u00b7 ' + list.length + ' variants</text>';
 
+  ZGEO = { PADL: PADL, plotW: plotW, s0: s0, span: span, W: W };
   var sv = $('#zoom'); sv.setAttribute('viewBox', '0 0 ' + W + ' ' + H); sv.innerHTML = out;
   sv.querySelectorAll('[data-k]').forEach(function(el){
     var r = list[+el.getAttribute('data-k')];
@@ -644,6 +704,7 @@ function paintZoom(){
     '<span style="color:var(--cur)">purple</span> curated, <span style="color:var(--warn)">amber</span> queued. ' +
     (g.strand === -1 ? '<b style="color:var(--warn)">' + GENE + ' is on the minus strand</b> \u2014 splice motifs are read on the lower sequence row, right to left. ' : '') +
     'Left-click opens, right-click queues.';
+  updateZoomBar();
   drawQueue();
 }
 
@@ -781,5 +842,109 @@ function render(){
 
 var _t = null;
 $('#find').addEventListener('input', function(){ clearTimeout(_t); _t = setTimeout(render, 180); });
+
+/* ---- zoom controls ----------------------------------------------------------------------------
+   The zoom panel used to print "window too wide to draw bases (487 bp) — zoom to under ~350 bp"
+   while providing nothing that could narrow the window. WIN was assigned in exactly one place, a
+   density-strip bin click, so whatever width that bin happened to be was the only width available.
+   An instruction the interface cannot obey is worse than no instruction. */
+
+// Clamp to the gene, enforce a floor, and refuse a window that would be empty.
+function setWin(a, b) {
+  var g = GENES[GENE]; if (!g) return;
+  a = Math.round(a); b = Math.round(b);
+  if (b < a) { var t = a; a = b; b = t; }
+  if (b - a < MINWIN) { var c = (a + b) / 2; a = c - MINWIN / 2; b = c + MINWIN / 2; }
+  var lo = g.start, hi = g.end + 1, w = Math.min(b - a, hi - lo);
+  a = Math.round(Math.max(lo, Math.min(a, hi - w)));
+  WIN = [a, a + Math.round(w)];
+  BINSEL = null;          // the strip selection no longer describes this window
+  render();
+}
+function zoomBy(f, anchor) {
+  if (!WIN) return;
+  var w = WIN[1] - WIN[0], nw = w * f;
+  // keep `anchor` (a genomic coordinate, default the centre) at the same fraction of the window
+  var at = anchor == null ? (WIN[0] + w / 2) : anchor;
+  var frac = (at - WIN[0]) / w;
+  setWin(at - nw * frac, at + nw * (1 - frac));
+}
+function panBy(f) { if (!WIN) return; var w = WIN[1] - WIN[0]; setWin(WIN[0] + w * f, WIN[1] + w * f); }
+
+// client x -> genomic coordinate. The SVG is preserveAspectRatio="none" with a viewBox, so client
+// pixels must be scaled into viewBox units first; using clientX directly is right at one width only.
+function xToPos(clientX) {
+  if (!ZGEO) return null;
+  var sv = $('#zoom'), r = sv.getBoundingClientRect();
+  var vx = (clientX - r.left) / r.width * ZGEO.W;
+  return ZGEO.s0 + (vx - ZGEO.PADL) / ZGEO.plotW * ZGEO.span;
+}
+function posToX(pos) { return ZGEO.PADL + (pos - ZGEO.s0) / ZGEO.span * ZGEO.plotW; }
+
+function updateZoomBar() {
+  var g = GENES[GENE]; if (!g || !WIN) return;
+  var w = WIN[1] - WIN[0], whole = (g.end + 1) - g.start;
+  $('#zread').textContent = w.toLocaleString() + ' bp' + (w > 350 ? ' — too wide for bases' : '');
+  $('#zin').disabled = w <= MINWIN;
+  $('#zout').disabled = w >= whole;
+  $('#zpl').disabled = WIN[0] <= g.start;
+  $('#zpr').disabled = WIN[1] >= g.end + 1;
+  $('#zbases').disabled = w <= 300;
+}
+
+$('#zin').onclick   = function () { zoomBy(0.5); };
+$('#zout').onclick  = function () { zoomBy(2); };
+$('#zpl').onclick   = function () { panBy(-0.5); };
+$('#zpr').onclick   = function () { panBy(0.5); };
+// The button the old message needed: go straight to a width where bases actually render.
+$('#zbases').onclick = function () { var c = (WIN[0] + WIN[1]) / 2; setWin(c - 150, c + 150); };
+$('#zwhole').onclick = function () { var g = GENES[GENE]; setWin(g.start, g.end + 1); };
+
+(function wireZoomGestures() {
+  var sv = $('#zoom'), band = null, x0 = null, moved = false;
+
+  sv.addEventListener('wheel', function (e) {
+    if (!WIN) return;
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 0.8 : 1.25, xToPos(e.clientX));
+  }, { passive: false });
+
+  // Drag across the plot to select a region. A drag under 4 px is a click, so left-clicking a
+  // variant to open it and right-clicking to queue it both still work.
+  sv.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0 || !WIN) return;
+    x0 = e.clientX; moved = false;
+    band = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    band.setAttribute('y', 0); band.setAttribute('height', '100%');
+    band.setAttribute('fill', 'var(--accent)'); band.setAttribute('opacity', '0.16');
+    band.setAttribute('pointer-events', 'none');
+    sv.appendChild(band);
+  });
+  sv.addEventListener('pointermove', function (e) {
+    if (x0 == null || !band) return;
+    if (Math.abs(e.clientX - x0) > 4) moved = true;
+    var a = posToX(xToPos(x0)), b = posToX(xToPos(e.clientX));
+    band.setAttribute('x', Math.min(a, b)); band.setAttribute('width', Math.abs(b - a));
+  });
+  function endDrag(e) {
+    if (x0 == null) return;
+    var a = xToPos(x0), b = xToPos(e.clientX);
+    if (band && band.parentNode) band.parentNode.removeChild(band);
+    band = null; var was = moved; x0 = null; moved = false;
+    if (was) setWin(a, b);
+  }
+  sv.addEventListener('pointerup', endDrag);
+  sv.addEventListener('pointerleave', endDrag);
+
+  // Arrow keys pan, +/- zoom, once the panel is on screen and focus is not in the search box.
+  document.addEventListener('keydown', function (e) {
+    if (!WIN || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); panBy(-0.5); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); panBy(0.5); }
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(0.5); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomBy(2); }
+    else if (e.key === 'Escape') { WIN = null; BINSEL = null; render(); }
+  });
+})();
 </script>
 </div></body></html>

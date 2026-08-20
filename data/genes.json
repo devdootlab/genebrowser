@@ -830,5 +830,1623 @@
   "pull_scope": "whole-gene (coding + non-coding)",
   "n_coding": 752,
   "n_noncoding": 5150
+ },
+ "F9": {
+  "symbol": "F9",
+  "ensembl_id": "ENSG00000101981",
+  "canonical_transcript": "ENST00000218099",
+  "chrom": "chrX",
+  "strand": 1,
+  "start": 139530731,
+  "end": 139568549,
+  "length": 37819,
+  "exons": [
+   [
+    139530739,
+    139530852
+   ],
+   [
+    139537010,
+    139537173
+   ],
+   [
+    139537362,
+    139537386
+   ],
+   [
+    139541076,
+    139541189
+   ],
+   [
+    139548363,
+    139548491
+   ],
+   [
+    139551062,
+    139551264
+   ],
+   [
+    139560741,
+    139560855
+   ],
+   [
+    139561524,
+    139563459
+   ]
+  ],
+  "exon_count": 8,
+  "description": "coagulation factor IX",
+  "n_variants": 8348,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 476,
+  "n_noncoding": 7872
+ },
+ "F7": {
+  "symbol": "F7",
+  "ensembl_id": "ENSG00000057593",
+  "canonical_transcript": "ENST00000346342",
+  "chrom": "chr13",
+  "strand": 1,
+  "start": 113105762,
+  "end": 113120685,
+  "length": 14924,
+  "exons": [
+   [
+    113105791,
+    113105905
+   ],
+   [
+    113110690,
+    113110850
+   ],
+   [
+    113113752,
+    113113776
+   ],
+   [
+    113113847,
+    113113960
+   ],
+   [
+    113115660,
+    113115800
+   ],
+   [
+    113116766,
+    113116875
+   ],
+   [
+    113117473,
+    113117596
+   ],
+   [
+    113118413,
+    113120685
+   ]
+  ],
+  "exon_count": 8,
+  "description": "coagulation factor VII",
+  "n_variants": 12469,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1269,
+  "n_noncoding": 11200
+ },
+ "F10": {
+  "symbol": "F10",
+  "ensembl_id": "ENSG00000126218",
+  "canonical_transcript": "ENST00000375559",
+  "chrom": "chr13",
+  "strand": 1,
+  "start": 113122771,
+  "end": 113149531,
+  "length": 26761,
+  "exons": [
+   [
+    113122799,
+    113122925
+   ],
+   [
+    113129452,
+    113129612
+   ],
+   [
+    113138457,
+    113138481
+   ],
+   [
+    113139357,
+    113139470
+   ],
+   [
+    113140919,
+    113141050
+   ],
+   [
+    113143851,
+    113144095
+   ],
+   [
+    113147379,
+    113147496
+   ],
+   [
+    113148916,
+    113149529
+   ]
+  ],
+  "exon_count": 8,
+  "description": "coagulation factor X",
+  "n_variants": 13253,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1102,
+  "n_noncoding": 12151
+ },
+ "F11": {
+  "symbol": "F11",
+  "ensembl_id": "ENSG00000088926",
+  "canonical_transcript": "ENST00000403665",
+  "chrom": "chr4",
+  "strand": 1,
+  "start": 186260159,
+  "end": 186291745,
+  "length": 31587,
+  "exons": [
+   [
+    186266189,
+    186266295
+   ],
+   [
+    186267136,
+    186267191
+   ],
+   [
+    186271609,
+    186271771
+   ],
+   [
+    186273071,
+    186273177
+   ],
+   [
+    186274116,
+    186274275
+   ],
+   [
+    186275787,
+    186275896
+   ],
+   [
+    186276231,
+    186276390
+   ],
+   [
+    186280012,
+    186280121
+   ],
+   [
+    186280223,
+    186280385
+   ],
+   [
+    186280474,
+    186280580
+   ],
+   [
+    186284092,
+    186284260
+   ],
+   [
+    186285638,
+    186285813
+   ],
+   [
+    186286415,
+    186286510
+   ],
+   [
+    186287684,
+    186287823
+   ],
+   [
+    186288453,
+    186289681
+   ]
+  ],
+  "exon_count": 15,
+  "description": "coagulation factor XI",
+  "n_variants": 14017,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1329,
+  "n_noncoding": 12688
+ },
+ "F12": {
+  "symbol": "F12",
+  "ensembl_id": "ENSG00000131187",
+  "canonical_transcript": "ENST00000253496",
+  "chrom": "chr5",
+  "strand": -1,
+  "start": 177402133,
+  "end": 177416583,
+  "length": 14451,
+  "exons": [
+   [
+    177402141,
+    177402459
+   ],
+   [
+    177402550,
+    177402698
+   ],
+   [
+    177403254,
+    177403397
+   ],
+   [
+    177403481,
+    177403617
+   ],
+   [
+    177403859,
+    177404090
+   ],
+   [
+    177404196,
+    177404413
+   ],
+   [
+    177404499,
+    177404664
+   ],
+   [
+    177404810,
+    177404914
+   ],
+   [
+    177405054,
+    177405185
+   ],
+   [
+    177405323,
+    177405433
+   ],
+   [
+    177405735,
+    177405805
+   ],
+   [
+    177405962,
+    177406061
+   ],
+   [
+    177409046,
+    177409103
+   ],
+   [
+    177409471,
+    177409564
+   ]
+  ],
+  "exon_count": 14,
+  "description": "coagulation factor XII",
+  "n_variants": 8313,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1996,
+  "n_noncoding": 6317
+ },
+ "F3": {
+  "symbol": "F3",
+  "ensembl_id": "ENSG00000117525",
+  "canonical_transcript": "ENST00000334047",
+  "chrom": "chr1",
+  "strand": -1,
+  "start": 94528263,
+  "end": 94541851,
+  "length": 13589,
+  "exons": [
+   [
+    94529173,
+    94530596
+   ],
+   [
+    94532321,
+    94532480
+   ],
+   [
+    94533090,
+    94533268
+   ],
+   [
+    94535965,
+    94536164
+   ],
+   [
+    94540257,
+    94540368
+   ],
+   [
+    94541537,
+    94541759
+   ]
+  ],
+  "exon_count": 6,
+  "description": "coagulation factor III, tissue factor",
+  "n_variants": 6451,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 726,
+  "n_noncoding": 5725
+ },
+ "F13B": {
+  "symbol": "F13B",
+  "ensembl_id": "ENSG00000143278",
+  "canonical_transcript": "ENST00000367412",
+  "chrom": "chr1",
+  "strand": -1,
+  "start": 197038737,
+  "end": 197067267,
+  "length": 28531,
+  "exons": [
+   [
+    197038741,
+    197039411
+   ],
+   [
+    197040522,
+    197040735
+   ],
+   [
+    197050697,
+    197050879
+   ],
+   [
+    197052634,
+    197052834
+   ],
+   [
+    197055715,
+    197055897
+   ],
+   [
+    197057013,
+    197057198
+   ],
+   [
+    197057286,
+    197057465
+   ],
+   [
+    197060366,
+    197060542
+   ],
+   [
+    197060899,
+    197061075
+   ],
+   [
+    197061784,
+    197061969
+   ],
+   [
+    197062857,
+    197063057
+   ],
+   [
+    197067160,
+    197067260
+   ]
+  ],
+  "exon_count": 12,
+  "description": "coagulation factor XIII B chain",
+  "n_variants": 10291,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1383,
+  "n_noncoding": 8908
+ },
+ "PROC": {
+  "symbol": "PROC",
+  "ensembl_id": "ENSG00000115718",
+  "canonical_transcript": "ENST00000234071",
+  "chrom": "chr2",
+  "strand": 1,
+  "start": 127415933,
+  "end": 127429762,
+  "length": 13830,
+  "exons": [
+   [
+    127418427,
+    127418492
+   ],
+   [
+    127419922,
+    127420012
+   ],
+   [
+    127421283,
+    127421449
+   ],
+   [
+    127422917,
+    127422941
+   ],
+   [
+    127423034,
+    127423171
+   ],
+   [
+    127423274,
+    127423408
+   ],
+   [
+    127426085,
+    127426227
+   ],
+   [
+    127427105,
+    127427222
+   ],
+   [
+    127428357,
+    127429242
+   ]
+  ],
+  "exon_count": 9,
+  "description": "protein C, inactivator of coagulation factors Va and VIIIa",
+  "n_variants": 7399,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1215,
+  "n_noncoding": 6184
+ },
+ "THBD": {
+  "symbol": "THBD",
+  "ensembl_id": "ENSG00000178726",
+  "canonical_transcript": "ENST00000377103",
+  "chrom": "chr20",
+  "strand": -1,
+  "start": 23045633,
+  "end": 23049672,
+  "length": 4040,
+  "exons": [
+   [
+    23045633,
+    23049672
+   ]
+  ],
+  "exon_count": 1,
+  "description": "thrombomodulin",
+  "n_variants": 4161,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 2296,
+  "n_noncoding": 1865
+ },
+ "PROCR": {
+  "symbol": "PROCR",
+  "ensembl_id": "ENSG00000101000",
+  "canonical_transcript": "ENST00000216968",
+  "chrom": "chr20",
+  "strand": 1,
+  "start": 35153330,
+  "end": 35216253,
+  "length": 62924,
+  "exons": [
+   [
+    35172072,
+    35172224
+   ],
+   [
+    35174702,
+    35174953
+   ],
+   [
+    35176168,
+    35176446
+   ],
+   [
+    35176698,
+    35177362
+   ]
+  ],
+  "exon_count": 4,
+  "description": "protein C receptor",
+  "n_variants": 22307,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 677,
+  "n_noncoding": 21630
+ },
+ "SERPIND1": {
+  "symbol": "SERPIND1",
+  "ensembl_id": "ENSG00000099937",
+  "canonical_transcript": "ENST00000215727",
+  "chrom": "chr22",
+  "strand": 1,
+  "start": 20774092,
+  "end": 20787721,
+  "length": 13630,
+  "exons": [
+   [
+    20774113,
+    20774145
+   ],
+   [
+    20779297,
+    20780201
+   ],
+   [
+    20783972,
+    20784245
+   ],
+   [
+    20786004,
+    20786148
+   ],
+   [
+    20786875,
+    20787720
+   ]
+  ],
+  "exon_count": 5,
+  "description": "serpin family D member 1",
+  "n_variants": 5474,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1037,
+  "n_noncoding": 4437
+ },
+ "SERPINA5": {
+  "symbol": "SERPINA5",
+  "ensembl_id": "ENSG00000188488",
+  "canonical_transcript": "ENST00000329597",
+  "chrom": "chr14",
+  "strand": 1,
+  "start": 94561399,
+  "end": 94597042,
+  "length": 35644,
+  "exons": [
+   [
+    94581426,
+    94581490
+   ],
+   [
+    94581615,
+    94581710
+   ],
+   [
+    94587346,
+    94587981
+   ],
+   [
+    94590041,
+    94590311
+   ],
+   [
+    94590749,
+    94590896
+   ],
+   [
+    94592057,
+    94593118
+   ]
+  ],
+  "exon_count": 6,
+  "description": "serpin family A member 5",
+  "n_variants": 17515,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 2029,
+  "n_noncoding": 15486
+ },
+ "PROZ": {
+  "symbol": "PROZ",
+  "ensembl_id": "ENSG00000126231",
+  "canonical_transcript": "ENST00000375547",
+  "chrom": "chr13",
+  "strand": 1,
+  "start": 113158388,
+  "end": 113173625,
+  "length": 15238,
+  "exons": [
+   [
+    113158648,
+    113158730
+   ],
+   [
+    113160014,
+    113160177
+   ],
+   [
+    113160948,
+    113160972
+   ],
+   [
+    113163009,
+    113163122
+   ],
+   [
+    113164513,
+    113164644
+   ],
+   [
+    113165053,
+    113165120
+   ],
+   [
+    113170413,
+    113170530
+   ],
+   [
+    113171594,
+    113172386
+   ]
+  ],
+  "exon_count": 8,
+  "description": "protein Z, vitamin K dependent plasma glycoprotein",
+  "n_variants": 8599,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1208,
+  "n_noncoding": 7391
+ },
+ "KLKB1": {
+  "symbol": "KLKB1",
+  "ensembl_id": "ENSG00000164344",
+  "canonical_transcript": "ENST00000264690",
+  "chrom": "chr4",
+  "strand": 1,
+  "start": 186225424,
+  "end": 186258476,
+  "length": 33053,
+  "exons": [
+   [
+    186227507,
+    186227587
+   ],
+   [
+    186228195,
+    186228253
+   ],
+   [
+    186232127,
+    186232289
+   ],
+   [
+    186233952,
+    186234058
+   ],
+   [
+    186236781,
+    186236940
+   ],
+   [
+    186238256,
+    186238365
+   ],
+   [
+    186250243,
+    186250402
+   ],
+   [
+    186251219,
+    186251328
+   ],
+   [
+    186251487,
+    186251649
+   ],
+   [
+    186251749,
+    186251861
+   ],
+   [
+    186252017,
+    186252185
+   ],
+   [
+    186254588,
+    186254763
+   ],
+   [
+    186255992,
+    186256087
+   ],
+   [
+    186257226,
+    186257365
+   ],
+   [
+    186258021,
+    186258471
+   ]
+  ],
+  "exon_count": 15,
+  "description": "kallikrein B1",
+  "n_variants": 13268,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1359,
+  "n_noncoding": 11909
+ },
+ "KNG1": {
+  "symbol": "KNG1",
+  "ensembl_id": "ENSG00000113889",
+  "canonical_transcript": "ENST00000644859",
+  "chrom": "chr3",
+  "strand": 1,
+  "start": 186717329,
+  "end": 186744736,
+  "length": 27408,
+  "exons": [
+   [
+    186717359,
+    186717737
+   ],
+   [
+    186720105,
+    186720215
+   ],
+   [
+    186722437,
+    186722521
+   ],
+   [
+    186725088,
+    186725260
+   ],
+   [
+    186727237,
+    186727344
+   ],
+   [
+    186731545,
+    186731629
+   ],
+   [
+    186732502,
+    186732674
+   ],
+   [
+    186739099,
+    186739206
+   ],
+   [
+    186739328,
+    186739414
+   ],
+   [
+    186741522,
+    186744410
+   ]
+  ],
+  "exon_count": 10,
+  "description": "kininogen 1",
+  "n_variants": 16882,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1365,
+  "n_noncoding": 15517
+ },
+ "SERPINE1": {
+  "symbol": "SERPINE1",
+  "ensembl_id": "ENSG00000106366",
+  "canonical_transcript": "ENST00000223095",
+  "chrom": "chr7",
+  "strand": 1,
+  "start": 101122158,
+  "end": 101139263,
+  "length": 17106,
+  "exons": [
+   [
+    101127104,
+    101127244
+   ],
+   [
+    101128393,
+    101128664
+   ],
+   [
+    101130421,
+    101130654
+   ],
+   [
+    101131875,
+    101132069
+   ],
+   [
+    101133695,
+    101133893
+   ],
+   [
+    101135494,
+    101135594
+   ],
+   [
+    101135715,
+    101135801
+   ],
+   [
+    101137001,
+    101137084
+   ],
+   [
+    101137405,
+    101139247
+   ]
+  ],
+  "exon_count": 9,
+  "description": "serpin family E member 1",
+  "n_variants": 9075,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 807,
+  "n_noncoding": 8268
+ },
+ "SERPINF2": {
+  "symbol": "SERPINF2",
+  "ensembl_id": "ENSG00000167711",
+  "canonical_transcript": "ENST00000453066",
+  "chrom": "chr17",
+  "strand": 1,
+  "start": 1742069,
+  "end": 1755271,
+  "length": 13203,
+  "exons": [
+   [
+    1742871,
+    1742908
+   ],
+   [
+    1744992,
+    1745058
+   ],
+   [
+    1745175,
+    1745213
+   ],
+   [
+    1745333,
+    1745395
+   ],
+   [
+    1745708,
+    1745909
+   ],
+   [
+    1747019,
+    1747162
+   ],
+   [
+    1747309,
+    1747512
+   ],
+   [
+    1748598,
+    1748740
+   ],
+   [
+    1752586,
+    1752790
+   ],
+   [
+    1754122,
+    1755265
+   ]
+  ],
+  "exon_count": 10,
+  "description": "serpin family F member 2",
+  "n_variants": 9135,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1053,
+  "n_noncoding": 8082
+ },
+ "VKORC1": {
+  "symbol": "VKORC1",
+  "ensembl_id": "ENSG00000167397",
+  "canonical_transcript": "ENST00000394975",
+  "chrom": "chr16",
+  "strand": -1,
+  "start": 31090260,
+  "end": 31095980,
+  "length": 5721,
+  "exons": [
+   [
+    31090854,
+    31091342
+   ],
+   [
+    31093312,
+    31093421
+   ],
+   [
+    31094557,
+    31094797
+   ]
+  ],
+  "exon_count": 3,
+  "description": "vitamin K epoxide reductase complex subunit 1",
+  "n_variants": 5361,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 993,
+  "n_noncoding": 4368
+ },
+ "GGCX": {
+  "symbol": "GGCX",
+  "ensembl_id": "ENSG00000115486",
+  "canonical_transcript": "ENST00000233838",
+  "chrom": "chr2",
+  "strand": -1,
+  "start": 85544720,
+  "end": 85561838,
+  "length": 17119,
+  "exons": [
+   [
+    85544720,
+    85550126
+   ],
+   [
+    85550555,
+    85550750
+   ],
+   [
+    85550925,
+    85551072
+   ],
+   [
+    85551480,
+    85551610
+   ],
+   [
+    85551812,
+    85551981
+   ],
+   [
+    85552416,
+    85552567
+   ],
+   [
+    85552939,
+    85553070
+   ],
+   [
+    85553232,
+    85553497
+   ],
+   [
+    85554143,
+    85554306
+   ],
+   [
+    85555484,
+    85555590
+   ],
+   [
+    85556182,
+    85556260
+   ],
+   [
+    85558440,
+    85558605
+   ],
+   [
+    85558917,
+    85559075
+   ],
+   [
+    85560815,
+    85560985
+   ],
+   [
+    85561386,
+    85561493
+   ]
+  ],
+  "exon_count": 15,
+  "description": "gamma-glutamyl carboxylase",
+  "n_variants": 12999,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1610,
+  "n_noncoding": 11389
+ },
+ "LMAN1": {
+  "symbol": "LMAN1",
+  "ensembl_id": "ENSG00000074695",
+  "canonical_transcript": "ENST00000251047",
+  "chrom": "chr18",
+  "strand": -1,
+  "start": 59327823,
+  "end": 59359417,
+  "length": 31595,
+  "exons": [
+   [
+    59327823,
+    59331129
+   ],
+   [
+    59331418,
+    59331539
+   ],
+   [
+    59333091,
+    59333244
+   ],
+   [
+    59338557,
+    59338627
+   ],
+   [
+    59338760,
+    59338953
+   ],
+   [
+    59345919,
+    59346051
+   ],
+   [
+    59347513,
+    59347571
+   ],
+   [
+    59349113,
+    59349236
+   ],
+   [
+    59353202,
+    59353301
+   ],
+   [
+    59354519,
+    59354580
+   ],
+   [
+    59355313,
+    59355420
+   ],
+   [
+    59355504,
+    59355658
+   ],
+   [
+    59359031,
+    59359265
+   ]
+  ],
+  "exon_count": 13,
+  "description": "lectin, mannose binding 1",
+  "n_variants": 12795,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1147,
+  "n_noncoding": 11648
+ },
+ "MCFD2": {
+  "symbol": "MCFD2",
+  "ensembl_id": "ENSG00000180398",
+  "canonical_transcript": "ENST00000319466",
+  "chrom": "chr2",
+  "strand": -1,
+  "start": 46895793,
+  "end": 46941855,
+  "length": 46063,
+  "exons": [
+   [
+    46901874,
+    46905594
+   ],
+   [
+    46907810,
+    46907969
+   ],
+   [
+    46909023,
+    46909177
+   ],
+   [
+    46915723,
+    46915806
+   ]
+  ],
+  "exon_count": 4,
+  "description": "multiple coagulation factor deficiency 2, ER cargo receptor complex subunit",
+  "n_variants": 21853,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 814,
+  "n_noncoding": 21039
+ },
+ "PLAT": {
+  "symbol": "PLAT",
+  "ensembl_id": "ENSG00000104368",
+  "canonical_transcript": "ENST00000220809",
+  "chrom": "chr8",
+  "strand": -1,
+  "start": 42174718,
+  "end": 42207709,
+  "length": 32992,
+  "exons": [
+   [
+    42174718,
+    42176151
+   ],
+   [
+    42178897,
+    42179063
+   ],
+   [
+    42179926,
+    42180066
+   ],
+   [
+    42180242,
+    42180378
+   ],
+   [
+    42180490,
+    42180685
+   ],
+   [
+    42181937,
+    42182022
+   ],
+   [
+    42182719,
+    42182890
+   ],
+   [
+    42185081,
+    42185172
+   ],
+   [
+    42187398,
+    42187572
+   ],
+   [
+    42187906,
+    42188016
+   ],
+   [
+    42188934,
+    42189071
+   ],
+   [
+    42191372,
+    42191414
+   ],
+   [
+    42193114,
+    42193211
+   ],
+   [
+    42207494,
+    42207565
+   ]
+  ],
+  "exon_count": 14,
+  "description": "plasminogen activator, tissue type",
+  "n_variants": 17864,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1398,
+  "n_noncoding": 16466
+ },
+ "ADAMTS13": {
+  "symbol": "ADAMTS13",
+  "ensembl_id": "ENSG00000160323",
+  "canonical_transcript": "ENST00000355699",
+  "chrom": "chr9",
+  "strand": 1,
+  "start": 133414358,
+  "end": 133459402,
+  "length": 45045,
+  "exons": [
+   [
+    133422367,
+    133422548
+   ],
+   [
+    133423101,
+    133423167
+   ],
+   [
+    133424321,
+    133424478
+   ],
+   [
+    133425529,
+    133425612
+   ],
+   [
+    133425938,
+    133426062
+   ],
+   [
+    133426199,
+    133426345
+   ],
+   [
+    133428634,
+    133428771
+   ],
+   [
+    133429939,
+    133430101
+   ],
+   [
+    133432588,
+    133432692
+   ],
+   [
+    133433378,
+    133433529
+   ],
+   [
+    133433641,
+    133433704
+   ],
+   [
+    133436829,
+    133436955
+   ],
+   [
+    133437749,
+    133437897
+   ],
+   [
+    133438246,
+    133438366
+   ],
+   [
+    133439366,
+    133439446
+   ],
+   [
+    133440344,
+    133440525
+   ],
+   [
+    133442399,
+    133442534
+   ],
+   [
+    133442614,
+    133442743
+   ],
+   [
+    133443376,
+    133443561
+   ],
+   [
+    133444863,
+    133445052
+   ],
+   [
+    133445699,
+    133445819
+   ],
+   [
+    133448599,
+    133448728
+   ],
+   [
+    133449783,
+    133449965
+   ],
+   [
+    133454415,
+    133454619
+   ],
+   [
+    133455285,
+    133455435
+   ],
+   [
+    133456069,
+    133456215
+   ],
+   [
+    133456543,
+    133456719
+   ],
+   [
+    133457910,
+    133458094
+   ],
+   [
+    133458974,
+    133459386
+   ]
+  ],
+  "exon_count": 29,
+  "description": "ADAM metallopeptidase with thrombospondin type 1 motif 13",
+  "n_variants": 27377,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 4892,
+  "n_noncoding": 22485
+ },
+ "PLG": {
+  "symbol": "PLG",
+  "ensembl_id": "ENSG00000122194",
+  "canonical_transcript": "ENST00000308192",
+  "chrom": "chr6",
+  "strand": 1,
+  "start": 160702105,
+  "end": 160754469,
+  "length": 52365,
+  "exons": [
+   [
+    160702244,
+    160702353
+   ],
+   [
+    160706407,
+    160706542
+   ],
+   [
+    160707700,
+    160707806
+   ],
+   [
+    160711077,
+    160711191
+   ],
+   [
+    160712986,
+    160713125
+   ],
+   [
+    160714794,
+    160714914
+   ],
+   [
+    160716645,
+    160716763
+   ],
+   [
+    160718294,
+    160718456
+   ],
+   [
+    160718693,
+    160718838
+   ],
+   [
+    160722408,
+    160722567
+   ],
+   [
+    160731051,
+    160731232
+   ],
+   [
+    160731745,
+    160731893
+   ],
+   [
+    160733995,
+    160734088
+   ],
+   [
+    160736887,
+    160737007
+   ],
+   [
+    160738538,
+    160738612
+   ],
+   [
+    160739068,
+    160739208
+   ],
+   [
+    160741311,
+    160741417
+   ],
+   [
+    160752115,
+    160752260
+   ],
+   [
+    160752900,
+    160754097
+   ]
+  ],
+  "exon_count": 19,
+  "description": "plasminogen",
+  "n_variants": 22162,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1757,
+  "n_noncoding": 20405
+ },
+ "TFPI": {
+  "symbol": "TFPI",
+  "ensembl_id": "ENSG00000003436",
+  "canonical_transcript": "ENST00000233156",
+  "chrom": "chr2",
+  "strand": -1,
+  "start": 187463823,
+  "end": 187565846,
+  "length": 102024,
+  "exons": [
+   [
+    187464230,
+    187467042
+   ],
+   [
+    187467753,
+    187467932
+   ],
+   [
+    187484124,
+    187484216
+   ],
+   [
+    187484811,
+    187484987
+   ],
+   [
+    187488337,
+    187488375
+   ],
+   [
+    187496881,
+    187497078
+   ],
+   [
+    187503648,
+    187503770
+   ],
+   [
+    187554200,
+    187554435
+   ]
+  ],
+  "exon_count": 8,
+  "description": "tissue factor pathway inhibitor",
+  "n_variants": 31878,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 656,
+  "n_noncoding": 31222
+ },
+ "PROS1": {
+  "symbol": "PROS1",
+  "ensembl_id": "ENSG00000184500",
+  "canonical_transcript": "ENST00000394236",
+  "chrom": "chr3",
+  "strand": -1,
+  "start": 93873038,
+  "end": 93980003,
+  "length": 106966,
+  "exons": [
+   [
+    93873051,
+    93874405
+   ],
+   [
+    93876966,
+    93877191
+   ],
+   [
+    93879163,
+    93879314
+   ],
+   [
+    93884728,
+    93884896
+   ],
+   [
+    93886336,
+    93886503
+   ],
+   [
+    93892933,
+    93893122
+   ],
+   [
+    93896576,
+    93896691
+   ],
+   [
+    93898448,
+    93898569
+   ],
+   [
+    93900804,
+    93900929
+   ],
+   [
+    93905784,
+    93905915
+   ],
+   [
+    93906021,
+    93906143
+   ],
+   [
+    93910619,
+    93910705
+   ],
+   [
+    93924240,
+    93924264
+   ],
+   [
+    93927250,
+    93927407
+   ],
+   [
+    93973674,
+    93973896
+   ]
+  ],
+  "exon_count": 15,
+  "description": "protein S",
+  "n_variants": 33334,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1338,
+  "n_noncoding": 31996
+ },
+ "F13A1": {
+  "symbol": "F13A1",
+  "ensembl_id": "ENSG00000124491",
+  "canonical_transcript": "ENST00000264870",
+  "chrom": "chr6",
+  "strand": -1,
+  "start": 6144080,
+  "end": 6321013,
+  "length": 176934,
+  "exons": [
+   [
+    6144084,
+    6145772
+   ],
+   [
+    6151813,
+    6151949
+   ],
+   [
+    6167458,
+    6167618
+   ],
+   [
+    6174580,
+    6174867
+   ],
+   [
+    6181988,
+    6182141
+   ],
+   [
+    6195797,
+    6195885
+   ],
+   [
+    6197223,
+    6197326
+   ],
+   [
+    6222033,
+    6222171
+   ],
+   [
+    6224686,
+    6224860
+   ],
+   [
+    6248312,
+    6248419
+   ],
+   [
+    6250811,
+    6250929
+   ],
+   [
+    6266558,
+    6266809
+   ],
+   [
+    6305351,
+    6305539
+   ],
+   [
+    6318535,
+    6318682
+   ],
+   [
+    6320587,
+    6320662
+   ]
+  ],
+  "exon_count": 15,
+  "description": "coagulation factor XIII A chain",
+  "n_variants": 52708,
+  "pull_scope": "whole gene (coding and non-coding), gnomAD v4.1 genomes, region query",
+  "n_coding": 1671,
+  "n_noncoding": 51037
  }
 }

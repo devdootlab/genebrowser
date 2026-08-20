@@ -96,6 +96,63 @@ def buckets_for(gene, genes, variants):
     return out, ex, g
 
 
+def peaks_for(bucket_deep, min_dist=100, binw=200):
+    """Density peaks in DEEP intronic sequence -- the spikes in the browser's strip, minus
+    everything within `min_dist` of a splice boundary.
+
+    The `deep` bucket sorts by distance ASCENDING, so `--bucket deep --limit 10` returns the ten
+    variants that only just cleared the 8 bp splice-region cut. Those are the least deep intronic
+    variants there are, which is the opposite of what a deep-intronic question is asking.
+
+    A peak here is a `binw` window holding far more variants than the gene's typical window.
+    Whether a peak is biology or a calling artefact is exactly what is unknown -- homopolymers and
+    tandem repeats produce identical-looking spikes -- so this only selects WHERE to look.
+    One representative per peak, so N panels cover N distinct peaks rather than N variants from one.
+    """
+    if not bucket_deep:
+        return []
+    far = [v for v in bucket_deep if v["_dist"] >= min_dist]
+    if not far:
+        return []
+    bins = {}
+    for v in far:
+        bins.setdefault(v["pos"] // binw, []).append(v)
+    counts = sorted(len(x) for x in bins.values())
+    med = counts[len(counts) // 2]
+    # median absolute deviation, scaled to a normal sigma; robust to the peaks themselves
+    mad = sorted(abs(c - med) for c in counts)[len(counts) // 2] * 1.4826
+    thresh = max(med + 4 * mad, 3 * med, 5)
+    hot = sorted(b for b, vs in bins.items() if len(vs) >= thresh)
+    # Merge ADJACENT hot bins. OAS1's three top "peaks" were 112,918,200-112,919,200 -- one
+    # contiguous 1 kb region reported as three, which would have spent three panels re-asking the
+    # same question. A peak is a run of hot bins, not a bin.
+    runs, cur = [], []
+    for b in hot:
+        if cur and b == cur[-1] + 1:
+            cur.append(b)
+        else:
+            if cur:
+                runs.append(cur)
+            cur = [b]
+    if cur:
+        runs.append(cur)
+    picks = []
+    for run in runs:
+        vs = [v for b in run for v in bins[b]]
+        # representative: strongest splice prediction, then commonest. Picking the rarest would
+        # select for singletons, which is what a calling artefact looks like.
+        vs = sorted(vs, key=lambda x: (-(x.get("spliceai") or 0), -(x.get("af") or 0)))
+        r = dict(vs[0])
+        r["_peak_n"] = len(vs)
+        r["_peak_start"] = run[0] * binw
+        r["_peak_end"] = (run[-1] + 1) * binw
+        r["_peak_bins"] = len(run)
+        r["_peak_med"] = med
+        picks.append(r)
+    picks.sort(key=lambda x: -x["_peak_n"])
+    return picks
+
+
 # ---- the checks that must pass before a single API call is made -------------------------------
 def preflight(v, g, gene, seq_cache):
     """Returns (ok, reason). Every one of these has a real failure behind it in this codebase."""
@@ -241,7 +298,9 @@ def draw(v, g, gene, model, dna_client, genome, outdir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gene"); ap.add_argument("--all", action="store_true")
-    ap.add_argument("--bucket", default="canonical", choices=["canonical", "spliceregion", "deep", "spliceai"])
+    ap.add_argument("--bucket", default="canonical", choices=["canonical", "spliceregion", "deep", "spliceai", "peak"])
+    ap.add_argument("--peakmin", type=int, default=100, help="min bp from any splice boundary for --bucket peak")
+    ap.add_argument("--peakbin", type=int, default=200, help="window width for --bucket peak")
     ap.add_argument("--spliceai", type=float, default=0.5, help="threshold when --bucket spliceai")
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--dry", action="store_true")
@@ -338,10 +397,17 @@ def main():
                     if v.get("spliceai") is not None and v["spliceai"] >= a.spliceai]
             pool.sort(key=lambda x: -x["spliceai"])
             b["spliceai"] = pool
+        if a.bucket == "peak":
+            b["peak"] = peaks_for(b["deep"], a.peakmin, a.peakbin)
         picked = b[a.bucket][: a.limit]
         log(f"\n=== {gene} · bucket {a.bucket} · {len(b[a.bucket])} available, taking {len(picked)} ===")
         if a.bucket == "spliceai":
             log(f"    SpliceAI >= {a.spliceai}: {len(b['spliceai'])} in {gene}")
+        if a.bucket == "peak":
+            for _v in picked:
+                log(f"    peak {_v['_peak_start']:,}-{_v['_peak_end']:,} ({_v['_peak_bins']}x{a.peakbin}bp)  "
+                    f"{_v['_peak_n']} variants vs median {_v['_peak_med']}  "
+                    f"{_v['_dist']:,} bp from the nearest splice site")
         log(f"    other buckets: canonical {len(b['canonical'])}, spliceregion {len(b['spliceregion'])}, "
             f"deep {len(b['deep'])}, indels skipped {len(b['skipped_indel'])}, exonic skipped {len(b['skipped_exonic'])}")
         for v in picked:
@@ -376,10 +442,28 @@ def main():
             log("  *** WARNING: canonical +-1/+-2 variants destroy a splice site. A median effect")
             log("  *** below 0.01 means the PIPELINE is wrong, not the biology. Do not trust other buckets.")
     if not a.dry:
-        out = {"renderer": RENDERER, "bucket": a.bucket, "drawn": done, "refused": refused, "failed": failed}
         p = os.path.join(ROOT, f"data/panels_{a.bucket}.json")
+        # MERGE, do not overwrite. One --gene call per gene is the normal way to run this, and a
+        # plain overwrite meant a 16-gene loop drew 16 figures and recorded 1: the PNGs were on disk
+        # with nothing in the manifest pointing at them, which is a silent loss, not an error.
+        # Keyed by id so a re-run of one gene replaces that gene's rows and leaves the rest.
+        prev = {"drawn": [], "refused": [], "failed": []}
+        if os.path.exists(p):
+            try:
+                old = json.load(open(p))
+                if old.get("renderer") == RENDERER and old.get("bucket") == a.bucket:
+                    prev = old
+            except Exception as e:
+                log(f"  existing {os.path.basename(p)} unreadable ({e}) -- starting fresh")
+        def _merge(old_rows, new_rows, key):
+            fresh = {r.get(key) for r in new_rows}
+            return [r for r in old_rows if r.get(key) not in fresh] + new_rows
+        out = {"renderer": RENDERER, "bucket": a.bucket,
+               "drawn":   _merge(prev.get("drawn", []), done, "id"),
+               "refused": _merge(prev.get("refused", []), refused, "tag"),
+               "failed":  _merge(prev.get("failed", []), failed, "tag")}
         json.dump(out, open(p, "w"), indent=1)
-        log(f"wrote {os.path.relpath(p, ROOT)}")
+        log(f"wrote {os.path.relpath(p, ROOT)} ({len(out['drawn'])} drawn in total, {len(done)} this run)")
 
 
 if __name__ == "__main__":

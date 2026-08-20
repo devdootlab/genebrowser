@@ -8,15 +8,18 @@
 //   node scripts/add_genes.mjs F8 VWF FGA FGB FGG
 import fs from 'node:fs';
 
-const R = 'C:/DevLab/GitFolder/daily/13b-genebrowser/';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+// repo root, derived from this file's location -- no absolute path baked in
+const R = path.dirname(path.dirname(fileURLToPath(import.meta.url))) + path.sep;
 const SYMBOLS = process.argv.slice(2);
 if (!SYMBOLS.length) { console.error('give gene symbols'); process.exit(1); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function ens(path, tries = 4) {
+async function ens(route, tries = 4) {
   for (let i = 0; i < tries; i++) {
     try {
-      const r = await fetch('https://rest.ensembl.org' + path, { headers: { accept: 'application/json' } });
+      const r = await fetch('https://rest.ensembl.org' + route, { headers: { accept: 'application/json' } });
       if (r.ok) return r.json();
     } catch (e) { /* retry */ }
     await sleep(1200 * (i + 1));
@@ -79,7 +82,9 @@ for (const sym of SYMBOLS) {
       rows.push([
         (v.rsids && v.rsids[0]) || String(v.pos),
         v.pos, v.ref, v.alt,
-        (v.consequence || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        // gnomAD returns a null consequence for some rows. An empty label renders as a blank chip
+        // that filters to nothing and reads as a category, so say plainly that it is unannotated.
+        ((v.consequence || 'unannotated').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())),
         (v.genome && typeof v.genome.af === 'number') ? v.genome.af : null,
         0,
         pr.spliceai_ds_max == null ? null : +pr.spliceai_ds_max,
@@ -104,6 +109,12 @@ for (const sym of SYMBOLS) {
     cols: ['rsid', 'pos', 'ref', 'alt', 'cons', 'af', 'curated', 'spliceai', 'pangolin', 'cadd', 'phylop', 'coding'], rows };
   fs.writeFileSync(R + `data/variants_${sym}.json`, JSON.stringify(pack));
   rec.n_variants = rows.length;
+  // Four genes were pulled non-coding-only and five whole-gene, and nothing recorded which was
+  // which -- the same chip meant different things on different genes. Every record now states its
+  // scope and its split, and scripts/test.mjs fails if they are missing.
+  rec.pull_scope = 'whole gene (coding and non-coding), gnomAD v4.1 genomes, region query';
+  rec.n_coding = rows.filter(r => r[11] === 1).length;
+  rec.n_noncoding = rows.length - rec.n_coding;
   GENES[sym] = rec;
   fs.writeFileSync(R + 'data/genes.json', JSON.stringify(GENES, null, 1));
 

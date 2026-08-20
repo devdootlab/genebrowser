@@ -16,7 +16,10 @@
 //
 //   node scripts/synthetic_control.mjs        -> data/control_set.json
 import fs from 'node:fs';
-const R = 'C:/DevLab/GitFolder/daily/13b-genebrowser/';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+// repo root, derived from this file's location -- no absolute path baked in
+const R = path.dirname(path.dirname(fileURLToPath(import.meta.url))) + path.sep;
 const GENES = JSON.parse(fs.readFileSync(R + 'data/genes.json', 'utf8'));
 
 const POS = [], NEG = [];

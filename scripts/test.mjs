@@ -19,7 +19,16 @@ const GN = Object.keys(GENES);
 
 /* ---- gene records ---------------------------------------------------------------------------- */
 ok(GN.length >= 4, `genes: at least 4 genes, got ${GN.length}`);
-ok(GN.every(g => GENES[g].exons && GENES[g].exons.length >= 2), 'genes: every gene has >=2 exons');
+// THBD (thrombomodulin) is genuinely intronless -- one exon, no splice sites, nothing for an
+// intronic browser to show. That is biology, not a bad pull, so the check is >=1 and the page has
+// to SAY the gene has no introns rather than silently showing an empty splice track.
+ok(GN.every(g => GENES[g].exons && GENES[g].exons.length >= 1), 'genes: every gene has >=1 exon');
+{
+  const single = GN.filter(g => GENES[g].exons.length < 2);
+  ok(single.every(g => GENES[g].exon_count === 1), `genes: single-exon genes record it (${single.join(',') || 'none'})`);
+  ok(!single.length || /no introns/.test(fs.readFileSync(path.join(R, 'browse.html'), 'utf8')),
+     'genes: the page says so when a gene has no introns');
+}
 ok(GN.every(g => [1, -1].includes(GENES[g].strand)), 'genes: strand is +1 or -1');
 // exons are [start,end] PAIRS. Reading .start off an array gave NaN and rendered an invisible
 // gene model on all four genes, silently.
@@ -47,7 +56,13 @@ for (const g of GN) {
   ok(new Set(afs.map(x => x.toFixed(8))).size > 20, `data: ${g} AF is not one repeated constant`);
   // Budget scales with the gene. VWF is 178 kb with 52 exons and legitimately carries 66,351
   // variants; a flat cap set when 746 KB was the worst case is simply wrong about it.
-  const budget = Math.max(1.5e6, GENES[g].length * 45);
+  // Budget scales with the VARIANT COUNT, not the gene length. The file is a list of variants, and
+  // 45 bytes/bp mis-sized both ends: ADAMTS13 is dense for its length (2.4 MB against a 2.0 MB
+  // length-based budget) while a long sparse gene got a budget it could never use.
+  // A row is ~90 bytes: ["rs1371497467",139553812,"C","A","Intron Variant",null,0,null,null,1.2,0.4,0]
+  // 120 leaves headroom for long rsIDs and long indel alleles while still catching the regression
+  // this exists for -- the 23.6 MB all-genes monolith, and any accidental duplication of rows.
+  const budget = Math.max(1.5e6, p.rows.length * 120);
   const sz = fs.statSync(path.join(R, f)).size;
   ok(sz < budget, `data: ${g} is ${(sz/1e6).toFixed(1)} MB, budget ${(budget/1e6).toFixed(1)} MB`);
 }
@@ -75,9 +90,18 @@ if (has('data/panels.json')) {
   // empty and that is correct, so only check the files when some are present.
   const anyFigs = has('images/panels') && fs.readdirSync(path.join(R,'images/panels')).some(f=>f.endsWith('.png'));
   if (anyFigs) ok(P.drawn.every(r => has(r.rich_img)), 'panels: every manifest entry has its file on disk');
+  // Count against EVERY manifest, not just panels.json. There are several buckets now (canonical,
+  // control, peak) and comparing the whole directory to one of them reported orphans that were
+  // simply another bucket's figures. A genuine orphan -- a PNG no manifest points at -- is still a
+  // failure: it is a figure nobody can trace back to a variant, which is how a stale pre-fix figure
+  // survives a re-run and gets read as current.
   const onDisk = has('images/panels') ? fs.readdirSync(path.join(R, 'images/panels')).filter(f => f.endsWith('.png')) : [];
-  if (anyFigs) ok(onDisk.length === P.drawn.length,
-     `panels: ${onDisk.length} files on disk vs ${P.drawn.length} in the manifest`);
+  const claimed = new Set();
+  for (const f of fs.readdirSync(path.join(R, 'data')).filter(f => /^panels.*\.json$/.test(f)))
+    for (const r of (J('data/' + f).drawn || [])) claimed.add(path.basename(r.rich_img || ''));
+  const orphans = onDisk.filter(f => !claimed.has(f));
+  if (anyFigs) ok(orphans.length === 0,
+     `panels: ${orphans.length} figures on disk that no manifest claims (${orphans.slice(0, 4).join(', ')}${orphans.length > 4 ? ', …' : ''})`);
 }
 
 // Four genes were pulled non-coding-only and five whole-gene. Same screen, different populations.
@@ -110,6 +134,35 @@ ok(!/(height|pin)[^.]{0,40}(represents|is|=)[^.]{0,20}phyloP/i.test(page),
 if (has('data/ref_mismatch.json')) {
   ok(Object.keys(J('data/ref_mismatch.json')).length > 0 && /REFBAD/.test(page),
      'page: variants with a wrong reference base carry a warning on their panel');
+}
+
+/* ---- strand ------------------------------------------------------------------------------------ */
+// Splicing reads the TRANSCRIBED strand. browse.html searched the plus strand for GT/AG on every
+// gene, which scored 0/10, 0/24, 0/4, 0/8, 0/50, 0/25 and 0/6 canonical motifs on the seven
+// minus-strand genes -- every mark wrong, every real site unmarked. scripts/check_strand_motifs.mjs
+// is the known-answer run (150/152, 98.7%); these checks stop the rule silently reverting.
+ok(/txBase|txDi/.test(page), 'strand: the zoom has a transcript-orientation helper');
+ok(/strand === -1 \? txBase/.test(page), 'strand: dinucleotides are read in transcript orientation');
+ok(/annotateSeq\([^)]*strand\)/.test(page), 'strand: annotateSeq is passed the gene strand');
+// the polypyrimidine tract is pyrimidines ON THE TRANSCRIPT -- same bug, second place
+ok(/var tx = seq\.split/.test(page), 'strand: polypyrimidine runs on the transcribed strand');
+ok(/minus-strand gene/.test(page), 'strand: the page says so when the gene is on the minus strand');
+
+/* ---- indels ------------------------------------------------------------------------------------ */
+// Every row rendered as one circle at r.pos, so a 13 bp deletion, a 6 bp insertion and a point
+// substitution were the same mark -- and rs753240633's 16 length alleles were one dot.
+ok(/function vtype/.test(page), 'indels: rows are classified by type');
+ok(/deletion/.test(page) && /insertion/.test(page), 'indels: the zoom legend names both');
+ok(/k:'vtype'/.test(page), 'indels: the table has a sortable type column');
+ok(/ONLY === 'indel'/.test(page), 'indels: there is an indels-only filter');
+ok(/AlphaGenome scores substitutions only/.test(page),
+   'indels: an indel says WHY it has no panel rather than a bare "no panel"');
+// the classifier itself, on the real SERPINC1 poly-A ladder
+{
+  const vt = new Function('r', page.match(/function vtype\(r\)\{[^]*?\n\}/)[0] + '; return vtype(r);');
+  const cases = [['C','T','SNV'],['CA','C','del'],['C','CA','ins'],['CAAAAAAAAAAAAA','C','del'],['AT','GC','MNV']];
+  ok(cases.every(c => vt({ref:c[0],alt:c[1]}).kind === c[2]), 'indels: vtype classifies the poly-A ladder correctly');
+  ok(vt({ref:'CAAAAAAAAAAAAA',alt:'C'}).d === -13, 'indels: a 13-base deletion reports -13, not -14 or -1');
 }
 
 /* ---- secrets ------------------------------------------------------------------------------------ */

@@ -92,7 +92,18 @@ var $ = function (s) { return document.querySelector(s); };
 var COLS = [
   {k:'rsid',  label:'rsID',        get:function(r){return r.rsid;}},
   {k:'pos',   label:'position',    num:true, get:function(r){return r.pos;}, fmt:function(r){return r.pos.toLocaleString();}},
-  {k:'change',label:'change',      get:function(r){return r.ref+'>'+r.alt;}},
+  // "CAAAAAAAAAAAAA>C" is unreadable and gives no clue it is a 13-base deletion. Show the raw
+  // alleles truncated, and the interpretation in its own sortable column.
+  {k:'change',label:'change',      get:function(r){return r.ref+'>'+r.alt;},
+              fmt:function(r){ var s=r.ref+'>'+r.alt;
+                return s.length<=16 ? s : '<span title="'+s+'">'+r.ref.slice(0,7)+'…>'+r.alt.slice(0,7)+'</span>'; }},
+  {k:'vtype', label:'type',        get:function(r){return vtype(r).kind;},
+              fmt:function(r){ var t = vtype(r);
+                if (t.kind === 'SNV') return '<span style="color:var(--faint)">sub</span>';
+                if (t.kind === 'MNV') return '<span style="color:var(--faint)">■ ' + t.span + ' bp sub</span>';
+                var col = t.kind === 'del' ? 'var(--neg)' : '#1c8a6a';
+                var gly = t.kind === 'del' ? '▼ −' : '▲ +';
+                return '<b style="color:' + col + '">' + gly + Math.abs(t.d) + ' bp</b>'; }},
   {k:'cons',  label:'consequence', get:function(r){return consOf(r);}},
   {k:'af',    label:'gnomAD AF',   num:true, get:function(r){return r.af==null?null:r.af;},
               fmt:function(r){return r.af==null?'—':(r.af>=0.001?(r.af*100).toFixed(2)+'%':(r.af*100).toExponential(1)+'%');}},
@@ -134,6 +145,22 @@ function consOf(r){
   return raw.replace(/\s*\(.*$/, '').toLowerCase();
 }
 function pkey(r){ return (r.rsid || r.pos) + '_' + r.ref + r.alt; }
+
+// What KIND of change a row is. gnomAD writes indels left-anchored -- "CA>C" is a one-base
+// deletion whose shared leading C is padding, not part of the event. Drawing every row as one
+// circle at r.pos made a 14-base deletion and a point substitution identical on screen, and made
+// the 16 length alleles of rs753240633 a single dot.
+function vtype(r){
+  var ref = String(r.ref || ''), alt = String(r.alt || '');
+  var p = 0; while (p < ref.length && p < alt.length && ref[p] === alt[p]) p++;   // strip the anchor
+  var dr = ref.length - p, da = alt.length - p;
+  if (dr === da && dr <= 1) return { kind: 'SNV',  d: 0,       span: 1,        label: ref + '>' + alt };
+  if (dr === da)            return { kind: 'MNV',  d: 0,       span: dr,       label: dr + ' bp substitution' };
+  if (da === 0 || dr > da)  return { kind: 'del',  d: da - dr, span: dr - da,  label: '−' + (dr - da) + ' bp deletion' };
+  return                           { kind: 'ins',  d: da - dr, span: 1,        label: '+' + (da - dr) + ' bp insertion' };
+}
+// A deletion occupies bases AFTER the anchor, so its footprint starts one past r.pos.
+function vspan(r){ var t = vtype(r); var s = r.pos + (t.kind === 'del' ? 1 : 0); return [s, s + (t.kind === 'del' ? t.span : 1)]; }
 function band(r){
   if (r.af == null) return 'unknown';
   if (r.af >= 0.05) return 'common ≥5%';
@@ -212,6 +239,12 @@ function shown(){
     // back to all 9,969. A filter a click can silently undo is worse than no filter.
     if (ONLY === 'curated' && !r.curated) return false;
     if (ONLY === 'panel' && !PANELS[pkey(r)]) return false;
+    if (ONLY === 'indel' && vtype(r).kind === 'SNV') return false;
+    // A null gnomAD genome AF means the variant was called in the EXOMES and not the genomes.
+    // Deep in an intron that means off-target capture: low depth, error-prone. It is 14-56% of
+    // rows gene-wide here and up to 82% inside a density peak, so it is not a rare edge case --
+    // it is most of what a deep-intronic peak is made of.
+    if (ONLY === 'hasaf' && r.af == null) return false;
     if (ONLY && ONLY.indexOf('sa') === 0 && !(r.spliceai != null && r.spliceai >= +ONLY.slice(2))) return false;
     if (WIN && (r.pos < WIN[0] || r.pos >= WIN[1])) return false;
     // Default view is non-coding, so all nine genes show the same population. Four were pulled
@@ -417,7 +450,10 @@ function drawZoomView(){
 
 function paintZoom(){
   var list = shown(), g = GENES[GENE];
-  var W = 1200, H = 235, PADL = 46, PADR = 10, PADT = 14, PADB = 66;
+  // A minus-strand gene gets an extra row for the transcribed strand, so it needs 14 more px of
+  // bottom margin. plotH is unchanged either way.
+  var MINUS = (g.strand === -1), XTRA = MINUS ? 14 : 0;
+  var W = 1200, H = 235 + XTRA, PADL = 46, PADR = 10, PADT = 14, PADB = 66 + XTRA;
   var s0 = WIN[0], e0 = WIN[1], span = Math.max(1, e0 - s0);
   var plotW = W - PADL - PADR, plotH = H - PADT - PADB;
   var LO = 1e-6, out = '';
@@ -451,11 +487,27 @@ function paintZoom(){
            '" y2="' + (PADT + plotH) + '" stroke="var(--rule)" stroke-width="0.8" pointer-events="none"/>';
   });
 
-  function annotateSeq(seq, s0, PADL, bw, seqY, plotH, PADT){
+  // Splicing happens on the TRANSCRIBED strand. For a minus-strand gene the plus-strand reference
+  // we fetch and draw is the complement of what the spliceosome reads, so a donor GT appears here
+  // as AC and an acceptor AG appears as CT. The old code searched the plus strand for GT and AG on
+  // every gene, which meant that on SERPINC1, F8, F2 and every other minus-strand gene it marked
+  // dinucleotides that are not splice sites and drew nothing at the ones that are. Verified at the
+  // SERPINC1 exon edge chr1:173,904,065: the bases just above it read CT, whose reverse complement
+  // is a perfect canonical AG acceptor, and the zoom marked nothing there.
+  function txBase(c){ return { A: 'T', C: 'G', G: 'C', T: 'A' }[c] || 'N'; }
+  // Transcript-orientation dinucleotide starting at plus-strand index i, for a given strand.
+  function txDi(seq, i, strand){
+    return strand === -1 ? txBase(seq[i + 1]) + txBase(seq[i]) : seq[i] + seq[i + 1];
+  }
+  function annotateSeq(seq, s0, PADL, bw, seqY, plotH, PADT, strand){
     var a = '', i;
-    // polypyrimidine tract: >=9 of any 10 consecutive bases are C or T. This is what the spliceosome
-    // branch-point machinery reads, and a variant that breaks it is the classic deep-intronic hit.
-    var py = seq.split('').map(function(c){ return (c === 'C' || c === 'T') ? 1 : 0; });
+    // polypyrimidine tract: >=9 of any 10 consecutive bases are C or T ON THE TRANSCRIBED STRAND.
+    // This is what the branch-point machinery reads, and a variant that breaks it is the classic
+    // deep-intronic hit. On a minus-strand gene the transcript pyrimidines are the plus strand's
+    // PURINES, so scanning the plus strand for C/T found tracts that do not exist and missed the
+    // real ones -- the same strand bug as the dinucleotides below.
+    var tx = seq.split('').map(function(c){ return strand === -1 ? txBase(c) : c; });
+    var py = tx.map(function(c){ return (c === 'C' || c === 'T') ? 1 : 0; });
     var runs = [], k = 0;
     while (k < seq.length - 9) {
       var sum = 0; for (i = k; i < k + 10; i++) sum += py[i];
@@ -465,42 +517,64 @@ function paintZoom(){
     runs.forEach(function(r){
       a += '<rect x="' + (PADL + r[0] * bw).toFixed(1) + '" y="' + (PADT + plotH + 4) + '" width="' +
            ((r[1] - r[0]) * bw).toFixed(1) + '" height="16" fill="#1f6fb2" opacity="0.13"/>';
-      a += '<text x="' + (PADL + (r[0] + r[1]) / 2 * bw).toFixed(1) + '" y="' + (seqY + 15) +
+      a += '<text x="' + (PADL + (r[0] + r[1]) / 2 * bw).toFixed(1) + '" y="' + (seqY + 15 + XTRA) +
            '" font-size="8.5" fill="#1f6fb2" text-anchor="middle">polypyrimidine ' + (r[1] - r[0]) + ' bp</text>';
     });
-    // GT and AG dinucleotides: every one is a site a variant could create or destroy. Marking them
-    // is not a claim that any is used -- it is where to look.
+    // GT and AG dinucleotides IN TRANSCRIPT ORIENTATION: every one is a site a variant could create
+    // or destroy. Marking them is not a claim that any is used -- it is where to look.
     for (i = 0; i < seq.length - 1; i++) {
-      var d = seq.substr(i, 2);
+      var d = txDi(seq, i, strand);
       if (d !== 'GT' && d !== 'AG') continue;
       a += '<rect x="' + (PADL + i * bw).toFixed(1) + '" y="' + (seqY - 11) + '" width="' + (2 * bw).toFixed(1) +
            '" height="13" fill="none" stroke="' + (d === 'GT' ? '#9a6414' : '#1c8a6a') +
-           '" stroke-width="0.9" opacity="0.55"><title>' + d + ' at ' + (s0 + i).toLocaleString() +
+           '" stroke-width="0.9" opacity="0.55"><title>' + d + ' (transcript) at ' + (s0 + i).toLocaleString() +
+           (strand === -1 ? ', reads ' + seq.substr(i, 2) + ' on the plus strand shown' : '') +
            ' \u2014 ' + (d === 'GT' ? 'potential donor' : 'potential acceptor') + ' dinucleotide</title></rect>';
     }
     return a;
   }
 
   if (seq && bw >= 3.2) {
-    out += annotateSeq(seq, s0, PADL, bw, seqY, plotH, PADT);
+    out += annotateSeq(seq, s0, PADL, bw, seqY, plotH, PADT, g.strand);
     var COL = {A:'#1c8a6a', C:'#1f6fb2', G:'#9a6414', T:'#a3352c'};
+    var fs9 = Math.min(12, Math.max(6, bw * 1.05)).toFixed(1);
     for (var i = 0; i < seq.length; i++) {
-      out += '<text x="' + (PADL + (i + 0.5) * bw).toFixed(1) + '" y="' + seqY + '" font-size="' +
-             Math.min(12, Math.max(6, bw * 1.05)).toFixed(1) + '" font-family="ui-monospace,monospace" fill="' +
-             (COL[seq[i]] || '#888') + '" text-anchor="middle">' + seq[i] + '</text>';
+      out += '<text x="' + (PADL + (i + 0.5) * bw).toFixed(1) + '" y="' + seqY + '" font-size="' + fs9 +
+             '" font-family="ui-monospace,monospace" fill="' + (COL[seq[i]] || '#888') +
+             '" opacity="' + (MINUS ? '0.42' : '1') + '" text-anchor="middle">' + seq[i] + '</text>';
     }
+    // The transcribed strand, drawn in place under the reference so x stays genomic. It is the
+    // COMPLEMENT, not the reverse complement -- to read the transcript you read this row RIGHT TO
+    // LEFT, which is what the arrow says. Without it the page showed only the strand the gene is
+    // not transcribed from and every splice motif looked wrong.
+    if (MINUS) {
+      for (var j = 0; j < seq.length; j++) {
+        var tb = txBase(seq[j]);
+        out += '<text x="' + (PADL + (j + 0.5) * bw).toFixed(1) + '" y="' + (seqY + 12) + '" font-size="' + fs9 +
+               '" font-family="ui-monospace,monospace" fill="' + (COL[tb] || '#888') + '" text-anchor="middle">' + tb + '</text>';
+      }
+      out += '<text x="' + (PADL - 4) + '" y="' + (seqY + 12) + '" font-size="8" fill="var(--faint)" text-anchor="end">3\u2032\u2190</text>' +
+             '<text x="' + (PADL - 4) + '" y="' + seqY + '" font-size="8" fill="var(--faint)" text-anchor="end">+</text>';
+    }
+    // Which side of an exon a boundary is depends on the strand: on a minus-strand gene the
+    // transcript runs from high coordinate to low, so the exon's HIGH edge is its acceptor side.
     (g.exons || []).forEach(function(ex){
       var p2 = Array.isArray(ex) ? ex : [ex.start, ex.end];
-      [p2[0], p2[1]].forEach(function(bnd){
+      var lo = Math.min(p2[0], p2[1]), hi = Math.max(p2[0], p2[1]);
+      [[lo, MINUS ? 'donor' : 'acceptor'], [hi, MINUS ? 'acceptor' : 'donor']].forEach(function(pr){
+        var bnd = pr[0];
         if (bnd < s0 || bnd > e0) return;
         var bx = PADL + (bnd - s0 + 0.5) * bw;
-        out += '<line x1="' + bx.toFixed(1) + '" y1="' + PADT + '" x2="' + bx.toFixed(1) + '" y2="' + (seqY + 4) +
-               '" stroke="#4a7fae" stroke-width="1.6" stroke-dasharray="3 2"/>' +
-               '<text x="' + (bx + 3).toFixed(1) + '" y="' + (PADT + 10) + '" font-size="8.5" fill="#4a7fae">exon edge</text>';
+        out += '<line x1="' + bx.toFixed(1) + '" y1="' + PADT + '" x2="' + bx.toFixed(1) + '" y2="' + (seqY + 4 + XTRA) +
+               '" stroke="#4a7fae" stroke-width="1.6" stroke-dasharray="3 2"><title>exon edge at ' +
+               bnd.toLocaleString() + ' \u2014 ' + pr[1] + ' side (' + (MINUS ? 'minus' : 'plus') + '-strand gene)</title></line>' +
+               '<text x="' + (bx + 3).toFixed(1) + '" y="' + (PADT + 10) + '" font-size="8.5" fill="#4a7fae">exon edge \u00b7 ' + pr[1] + '</text>';
       });
     });
-    out += '<text x="' + PADL + '" y="' + (seqY + 26) + '" font-size="9" fill="var(--faint)">GRCh38 reference, ' + seq.length +
-           ' bp \u00b7 <tspan fill="#9a6414">GT</tspan> potential donor \u00b7 <tspan fill="#1c8a6a">AG</tspan> potential acceptor \u00b7 shaded = polypyrimidine tract</text>';
+    out += '<text x="' + PADL + '" y="' + (seqY + 26 + XTRA) + '" font-size="9" fill="var(--faint)">GRCh38 ' + seq.length + ' bp \u00b7 ' +
+           (MINUS ? '<tspan fill="var(--warn)">minus-strand gene: motifs are read on the lower row, right to left</tspan> \u00b7 ' : 'plus-strand gene \u00b7 ') +
+           ((g.exons || []).length < 2 ? '<tspan fill="var(--warn)">this gene has no introns (single exon)</tspan> \u00b7 ' : '') +
+           '<tspan fill="#9a6414">GT</tspan> donor \u00b7 <tspan fill="#1c8a6a">AG</tspan> acceptor (transcript orientation) \u00b7 shaded = polypyrimidine tract</text>';
   } else if (seq) {
     out += '<text x="' + PADL + '" y="' + seqY + '" font-size="10" fill="var(--faint)">window too wide to draw bases (' + span + ' bp) \u2014 zoom to under ~350 bp</text>';
   } else {
@@ -510,13 +584,32 @@ function paintZoom(){
   list.forEach(function(r, k){
     var x = PADL + (r.pos - s0 + 0.5) * bw, y = yOf(r.af);
     var p = PANELS[pkey(r)], q = QUEUE.indexOf(r) >= 0;
-    out += '<circle data-k="' + k + '" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' +
-           (q ? 6 : p ? 5 : 3.4) + '" fill="' + (q ? 'var(--warn)' : p ? 'var(--accent)' : (r.curated ? 'var(--cur)' : '#9aa6b2')) +
-           '" opacity="' + (q || p ? 0.95 : 0.65) + '">' +
-           '<title>' + (r.rsid || r.pos) + '  ' + r.ref + '>' + r.alt + '\nchr' + String(g.chrom).replace('chr','') + ':' +
-           r.pos.toLocaleString() + '\nAF ' + (r.af == null ? 'none' : r.af.toExponential(2)) + '\n' + consOf(r) +
-           (p ? '\nAlphaGenome ' + p.splice_log2fc.toFixed(3) : '\nno panel') +
-           '\n\nleft-click: open   right-click: queue</title></circle>';
+    // Shape carries the KIND of change. Every row used to be a circle, so a 14-base deletion, a
+    // 4-base insertion and a point substitution were indistinguishable -- and rs753240633's 16
+    // length alleles stacked into what looked like one variant.
+    var t = vtype(r), sz = q ? 6 : p ? 5 : 3.6;
+    var fill = q ? 'var(--warn)' : p ? 'var(--accent)' : (r.curated ? 'var(--cur)' : '#9aa6b2');
+    var op = (q || p ? 0.95 : 0.7);
+    // No genome AF -> exome-only call, drawn on the axis floor. Hollow, so a floor full of marks
+    // reads as "not measured in the genomes" rather than "measured, and vanishingly rare".
+    if (r.af == null && !q && !p) { fill = 'none'; }
+    var tip = '<title>' + (r.rsid || r.pos) + '  ' + r.ref + '>' + r.alt + '\n' + t.label +
+           '\nchr' + String(g.chrom).replace('chr','') + ':' + r.pos.toLocaleString() +
+           (t.kind === 'del' ? ' (removes ' + vspan(r)[0].toLocaleString() + '–' + (vspan(r)[1] - 1).toLocaleString() + ')' : '') +
+           '\nAF ' + (r.af == null ? 'none' : r.af.toExponential(2)) + '\n' + consOf(r) +
+           (p ? '\nAlphaGenome ' + p.splice_log2fc.toFixed(3)
+              : t.kind === 'SNV' ? '\nno panel' : '\nno panel — AlphaGenome scores substitutions only') +
+           '\n\nleft-click: open   right-click: queue</title>';
+    // a deletion's footprint: the bases it actually removes, shaded down to the axis
+    if (t.kind === 'del') {
+      var sp = vspan(r), dx1 = PADL + (sp[0] - s0) * bw, dx2 = PADL + (sp[1] - s0) * bw;
+      out += '<rect x="' + dx1.toFixed(1) + '" y="' + (y - 3).toFixed(1) + '" width="' + Math.max(1.2, dx2 - dx1).toFixed(1) +
+             '" height="' + Math.max(0, PADT + plotH - y + 3).toFixed(1) + '" fill="var(--neg)" opacity="0.16" pointer-events="none"/>';
+    }
+    if (t.kind === 'del')      out += '<polygon data-k="' + k + '" points="' + (x - sz).toFixed(1) + ',' + (y - sz).toFixed(1) + ' ' + (x + sz).toFixed(1) + ',' + (y - sz).toFixed(1) + ' ' + x.toFixed(1) + ',' + (y + sz).toFixed(1) + '" fill="' + fill + '" stroke="var(--neg)" stroke-width="0.9" opacity="' + op + '">' + tip + '</polygon>';
+    else if (t.kind === 'ins') out += '<polygon data-k="' + k + '" points="' + (x - sz).toFixed(1) + ',' + (y + sz).toFixed(1) + ' ' + (x + sz).toFixed(1) + ',' + (y + sz).toFixed(1) + ' ' + x.toFixed(1) + ',' + (y - sz).toFixed(1) + '" fill="' + fill + '" stroke="#1c8a6a" stroke-width="0.9" opacity="' + op + '">' + tip + '</polygon>';
+    else if (t.kind === 'MNV') out += '<rect data-k="' + k + '" x="' + (x - sz).toFixed(1) + '" y="' + (y - sz).toFixed(1) + '" width="' + (2 * sz).toFixed(1) + '" height="' + (2 * sz).toFixed(1) + '" fill="' + fill + '" opacity="' + op + '">' + tip + '</rect>';
+    else                       out += '<circle data-k="' + k + '" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + sz + '" fill="' + fill + '" opacity="' + op + '">' + tip + '</circle>';
   });
 
   out += '<text x="' + PADL + '" y="' + (H - 5) + '" font-size="9.5" fill="var(--faint)">' + s0.toLocaleString() + '</text>';
@@ -525,7 +618,7 @@ function paintZoom(){
          span + ' bp \u00b7 ' + list.length + ' variants</text>';
 
   var sv = $('#zoom'); sv.setAttribute('viewBox', '0 0 ' + W + ' ' + H); sv.innerHTML = out;
-  sv.querySelectorAll('circle').forEach(function(el){
+  sv.querySelectorAll('[data-k]').forEach(function(el){
     var r = list[+el.getAttribute('data-k')];
     el.addEventListener('click', function(){ SEL = r; render(); detail(r); });
     el.addEventListener('contextmenu', function(e){
@@ -535,10 +628,18 @@ function paintZoom(){
       drawQueue(); paintZoom();
     });
   });
+  // Shape = what kind of change; colour = what we know about it. Two independent things, and the
+  // legend has to say both or the shapes read as decoration.
+  var nDel = list.filter(function(r){ return vtype(r).kind === 'del'; }).length;
+  var nIns = list.filter(function(r){ return vtype(r).kind === 'ins'; }).length;
   $('#zlab').innerHTML = '<b>Zoom \u00b7 chr' + String(g.chrom).replace('chr','') + ':' + s0.toLocaleString() + '\u2013' + e0.toLocaleString() +
-    '</b> \u2014 one circle per variant, x is position, y is allele frequency (log). ' +
-    '<span style="color:var(--accent)">blue</span> has a panel, <span style="color:var(--cur)">purple</span> curated, ' +
-    '<span style="color:var(--warn)">amber</span> queued. Left-click opens, right-click queues.';
+    '</b> \u2014 x is position, y is allele frequency (log). ' +
+    '<b>Shape = type:</b> \u25cf substitution, <b style="color:var(--neg)">\u25bc</b> deletion (' + nDel + ' here, shaded band shows the bases removed), ' +
+    '<b style="color:#1c8a6a">\u25b2</b> insertion (' + nIns + '), \u25a0 multi-base substitution. ' +
+    '<b>Colour = status:</b> <span style="color:var(--accent)">blue</span> has a panel, ' +
+    '<span style="color:var(--cur)">purple</span> curated, <span style="color:var(--warn)">amber</span> queued. ' +
+    (g.strand === -1 ? '<b style="color:var(--warn)">' + GENE + ' is on the minus strand</b> \u2014 splice motifs are read on the lower sequence row, right to left. ' : '') +
+    'Left-click opens, right-click queues.';
   drawQueue();
 }
 
@@ -574,6 +675,10 @@ function drawChips(list){
   });
   var nc = all.filter(function(r){ return r.curated; }).length;
   if (nc) chip('curated only', nc, ONLY === 'curated', function(){ ONLY = (ONLY === 'curated') ? null : 'curated'; CONS = null; BAND = null; render(); });
+  var ni = all.filter(function(r){ return vtype(r).kind !== 'SNV'; }).length;
+  if (ni) chip('indels only', ni, ONLY === 'indel', function(){ ONLY = (ONLY === 'indel') ? null : 'indel'; CONS = null; BAND = null; render(); });
+  var na = all.filter(function(r){ return r.af != null; }).length;
+  if (na && na < all.length) chip('genome-called only', na, ONLY === 'hasaf', function(){ ONLY = (ONLY === 'hasaf') ? null : 'hasaf'; CONS = null; BAND = null; render(); });
 }
 
 function drawHead(){

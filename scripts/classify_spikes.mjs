@@ -14,7 +14,10 @@
 //
 //   node scripts/classify_spikes.mjs
 import fs from 'node:fs';
-const R = 'C:/DevLab/GitFolder/daily/13b-genebrowser/';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+// repo root, derived from this file's location -- no absolute path baked in
+const R = path.dirname(path.dirname(fileURLToPath(import.meta.url))) + path.sep;
 const NB = 220, MULT = 4;                       // same binning and threshold the strip uses
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

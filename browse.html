@@ -218,6 +218,12 @@ function loadGene(g, done){
   LOADING = true;
   $('#count').textContent = 'loading ' + g + '\u2026';
   $('#tb').innerHTML = '<tr><td colspan="8" class="empty">loading ' + g + '\u2026</td></tr>';
+  // The gene's whole reference sequence ships with the app (data/seq_<GENE>.txt) and is pulled
+  // alongside the variants, so zooming never waits on a network call. It used to hit Ensembl live,
+  // per window: a cross-origin round-trip to fetch 40 characters, every time you looked somewhere
+  // new. Fired in parallel and never awaited -- a slow or missing sequence must not hold up the
+  // table, which is the part people came for.
+  fetchGeneSeq(g);
   fetch('data/variants_' + g + '.json')
     .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(pack){ LOADED[g] = rowsFrom(pack); LOADING = false; done(); })
@@ -225,6 +231,25 @@ function loadGene(g, done){
       LOADING = false;
       $('#tb').innerHTML = '<tr><td colspan="8" class="empty">could not load ' + g + ': ' + e.message + '</td></tr>';
     });
+}
+
+// The gene's reference sequence, shipped as data/seq_<GENE>.txt and sliced locally. Keyed by gene.
+var GSEQ = {}, GSEQPEND = {};
+function fetchGeneSeq(g){
+  if (GSEQ[g] || GSEQPEND[g]) return;
+  GSEQPEND[g] = 1;
+  fetch('data/seq_' + g + '.txt')
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(function(t){
+      t = t.trim().toUpperCase();
+      var want = GENES[g] ? (GENES[g].end - GENES[g].start + 1) : 0;
+      // A short file would shift every base in the zoom by an offset and still look like sequence.
+      // Refuse it rather than draw a plausible lie; the Ensembl path below still works.
+      if (want && t.length !== want) { delete GSEQPEND[g]; return; }
+      GSEQ[g] = t; delete GSEQPEND[g];
+      if (WIN && GENE === g) paintZoom();
+    })
+    .catch(function(){ delete GSEQPEND[g]; });   // falls back to Ensembl
 }
 
 window.REFBAD = {};
@@ -300,6 +325,7 @@ var BINSEL = null, WIN = null;
 // The SVG is preserveAspectRatio="none" with a viewBox, so client px must be scaled into
 // viewBox units first -- using clientX directly is wrong at every width but one.
 var ZGEO = null;
+var DELCOVER = [];   // spans covered by deletion bands in the current paint
 var MINWIN = 40;   // below this the bases are unreadable and the AF axis is meaningless
 
 function drawStrip(list, sel){
@@ -442,7 +468,14 @@ function blockFor(chrom, a, b) {
   }
   return null;
 }
-function seqFor(chrom, a, b) { return blockFor(chrom, a, b); }
+function seqFor(chrom, a, b) {
+  // Shipped sequence first: no network, no latency, no dependency on Ensembl being up. The
+  // block cache below remains for anything not covered by a shipped file.
+  var g = GENES[GENE];
+  if (g && GSEQ[GENE] && String(g.chrom) === String(chrom) && a >= g.start && b <= g.end)
+    return GSEQ[GENE].slice(a - g.start, b - g.start + 1);
+  return blockFor(chrom, a, b);
+}
 
 function fetchSeq(chrom, a, b, cb, attempt){
   // widen to a block, so neighbouring windows are already covered
@@ -479,9 +512,10 @@ function fetchSeq(chrom, a, b, cb, attempt){
 
 function drawQueue(){
   var q = $('#qlab');
-  if (!QUEUE.length) { q.innerHTML = '<span class="qq">Right-click any variant above to queue it for AlphaGenome.</span>'; return; }
-  q.innerHTML = '<div class="qbar"><b>' + QUEUE.length + ' queued</b>' +
-    '<button class="qbtn" id="qcopy">Copy command</button>' +
+  if (!QUEUE.length) { q.innerHTML = '<span class="qq"><b>Build list is empty.</b> Right-click any mark above to add it. ' +
+    'Nothing is computed in the browser — you collect variants here, then copy one command to run them.</span>'; return; }
+  q.innerHTML = '<div class="qbar"><b>' + QUEUE.length + ' on the build list</b>' +
+    '<button class="qbtn" id="qcopy">Copy the command</button>' +
     '<button class="qbtn ghost" id="qclear">Clear</button>' +
     '<span class="qq">' + QUEUE.map(function(r){ return r.rsid || r.pos; }).join(', ') + '</span></div>';
   $('#qcopy').onclick = function(){
@@ -517,6 +551,7 @@ function drawZoomView(){
 
 function paintZoom(){
   var list = shown(), g = GENES[GENE];
+  DELCOVER = [];
   // A minus-strand gene gets an extra row for the transcribed strand, so it needs 14 more px of
   // bottom margin. plotH is unchanged either way.
   var MINUS = (g.strand === -1), XTRA = MINUS ? 14 : 0;
@@ -668,11 +703,23 @@ function paintZoom(){
            (p ? '\nAlphaGenome ' + p.splice_log2fc.toFixed(3)
               : t.kind === 'SNV' ? '\nno panel' : '\nno panel — AlphaGenome scores substitutions only') +
            '\n\nleft-click: open   right-click: queue</title>';
-    // a deletion's footprint: the bases it actually removes, shaded down to the axis
+    // A deletion's footprint: the bases it actually removes, shaded down to the axis.
+    //
+    // These are translucent, so where several deletions share an anchor -- which is precisely what
+    // happens in a homopolymer or repeat, one mutable site throwing a ladder of lengths -- the
+    // bands overlap and the alpha compounds into what looks exactly like a heatmap. It is not:
+    // darker only means MORE DELETIONS COVER THIS BASE. It encodes no measured quantity. The
+    // legend now says so, and the band carries a tooltip naming the deletion that drew it, because
+    // a gradient nobody can interrogate reads as data.
     if (t.kind === 'del') {
       var sp = vspan(r), dx1 = PADL + (sp[0] - s0) * bw, dx2 = PADL + (sp[1] - s0) * bw;
+      DELCOVER.push([sp[0], sp[1]]);
       out += '<rect x="' + dx1.toFixed(1) + '" y="' + (y - 3).toFixed(1) + '" width="' + Math.max(1.2, dx2 - dx1).toFixed(1) +
-             '" height="' + Math.max(0, PADT + plotH - y + 3).toFixed(1) + '" fill="var(--neg)" opacity="0.16" pointer-events="none"/>';
+             '" height="' + Math.max(0, PADT + plotH - y + 3).toFixed(1) + '" fill="var(--neg)" opacity="0.16">' +
+             '<title>' + (r.rsid || r.pos) + ' removes ' + t.span + ' base' + (t.span === 1 ? '' : 's') +
+             ': ' + sp[0].toLocaleString() + '–' + (sp[1] - 1).toLocaleString() +
+             '\nBands are translucent — where they overlap, darker means more deletions cover that base.' +
+             '\nIt is not a heatmap and does not encode a measured value.</title></rect>';
     }
     if (t.kind === 'del')      out += '<polygon data-k="' + k + '" points="' + (x - sz).toFixed(1) + ',' + (y - sz).toFixed(1) + ' ' + (x + sz).toFixed(1) + ',' + (y - sz).toFixed(1) + ' ' + x.toFixed(1) + ',' + (y + sz).toFixed(1) + '" fill="' + fill + '" stroke="var(--neg)" stroke-width="0.9" opacity="' + op + '">' + tip + '</polygon>';
     else if (t.kind === 'ins') out += '<polygon data-k="' + k + '" points="' + (x - sz).toFixed(1) + ',' + (y + sz).toFixed(1) + ' ' + (x + sz).toFixed(1) + ',' + (y + sz).toFixed(1) + ' ' + x.toFixed(1) + ',' + (y - sz).toFixed(1) + '" fill="' + fill + '" stroke="#1c8a6a" stroke-width="0.9" opacity="' + op + '">' + tip + '</polygon>';
@@ -699,16 +746,40 @@ function paintZoom(){
   });
   // Shape = what kind of change; colour = what we know about it. Two independent things, and the
   // legend has to say both or the shapes read as decoration.
+  // One run-on sentence of jargon told the reader nothing they could act on -- "blue has a panel"
+  // does not say what a panel is or how to get one, and "motifs are read on the lower sequence row"
+  // assumes you already know why there are two rows. Short labelled lines, plain words, and every
+  // count is live so the legend describes THIS window rather than the feature in the abstract.
   var nDel = list.filter(function(r){ return vtype(r).kind === 'del'; }).length;
   var nIns = list.filter(function(r){ return vtype(r).kind === 'ins'; }).length;
-  $('#zlab').innerHTML = '<b>Zoom \u00b7 chr' + String(g.chrom).replace('chr','') + ':' + s0.toLocaleString() + '\u2013' + e0.toLocaleString() +
-    '</b> \u2014 x is position, y is allele frequency (log). ' +
-    '<b>Shape = type:</b> \u25cf substitution, <b style="color:var(--neg)">\u25bc</b> deletion (' + nDel + ' here, shaded band shows the bases removed), ' +
-    '<b style="color:#1c8a6a">\u25b2</b> insertion (' + nIns + '), \u25a0 multi-base substitution. ' +
-    '<b>Colour = status:</b> <span style="color:var(--accent)">blue</span> has a panel, ' +
-    '<span style="color:var(--cur)">purple</span> curated, <span style="color:var(--warn)">amber</span> queued. ' +
-    (g.strand === -1 ? '<b style="color:var(--warn)">' + GENE + ' is on the minus strand</b> \u2014 splice motifs are read on the lower sequence row, right to left. ' : '') +
-    'Left-click opens, right-click queues.';
+  var nSub = list.length - nDel - nIns;
+  var nPanel = list.filter(function(r){ return PANELS[pkey(r)]; }).length;
+  var L = [];
+  L.push('<b>chr' + String(g.chrom).replace('chr','') + ':' + s0.toLocaleString() + '\u2013' + e0.toLocaleString() + '</b>' +
+         ' &nbsp;\u00b7&nbsp; each mark is one variant &nbsp;\u00b7&nbsp; left\u2013right = position along the gene, ' +
+         'up\u2013down = how common it is (top = everyone, bottom = one person in a million)');
+  L.push('<b>Shape says what kind of change:</b> \u25cf swapped base (' + nSub + ') &nbsp; ' +
+         '<b style="color:var(--neg)">\u25bc</b> bases deleted (' + nDel + ') &nbsp; ' +
+         '<b style="color:#1c8a6a">\u25b2</b> bases inserted (' + nIns + ') &nbsp; \u25a0 several bases swapped at once');
+  if (nDel) L.push('<b style="color:var(--neg)">The pink bands are deletions</b>, each covering the bases it removes. ' +
+         'They are see-through, so where deletions overlap it goes darker \u2014 <b>darker just means more deletions ' +
+         'cover that base. It is not a heatmap and is not measuring anything.</b> Hover one to see which deletion drew it.');
+  L.push('<b>Colour says what we have on it:</b> grey = nothing yet &nbsp; ' +
+         '<span style="color:var(--accent)">blue</span> = an AlphaGenome figure exists, click to see it (' + nPanel + ' here) &nbsp; ' +
+         '<span style="color:var(--cur)">purple</span> = hand-checked from a paper &nbsp; ' +
+         '<span style="color:var(--warn)">amber</span> = you queued it. <b>Hollow</b> = never seen in gnomAD\u2019s genomes, only its exomes.');
+  if (g.strand === -1) L.push('<b style="color:var(--warn)">' + GENE + ' is read backwards.</b> ' +
+         'The top row of letters is the reference genome, left to right. The cell reads the <b>bottom</b> row, ' +
+         '<b>right to left</b> \u2014 so that is the row to look at for GT and AG splice signals.');
+  // "Left-click opens, right-click queues" said nothing a person could act on: open WHAT, and
+  // queue it FOR what? Both now say what actually happens and what you get at the end.
+  L.push('<b>Clicking:</b> <b>left-click</b> a mark to select it \u2014 its row highlights in the table below ' +
+         'and a detail card opens under it with the position, frequency, predictor scores and the ' +
+         'AlphaGenome figure if one has been drawn. &nbsp; ' +
+         '<b>right-click</b> to add it to a <b>build list</b> (it turns amber). ' +
+         'Nothing runs in the browser \u2014 a web page cannot hold an API key. When the list is ready, ' +
+         '\u201cCopy command\u201d gives you a line to paste into a terminal, which draws those figures.');
+  $('#zlab').innerHTML = L.join('<br>');
   updateZoomBar();
   drawQueue();
 }

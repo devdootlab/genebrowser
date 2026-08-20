@@ -165,6 +165,51 @@ ok(/AlphaGenome scores substitutions only/.test(page),
   ok(vt({ref:'CAAAAAAAAAAAAA',alt:'C'}).d === -13, 'indels: a 13-base deletion reports -13, not -14 or -1');
 }
 
+/* ---- shipped reference sequence ---------------------------------------------------------------- */
+// The zoom used to fetch sequence from Ensembl live, per window, so looking at a fresh 40 bp region
+// meant waiting on a cross-origin round-trip for 40 characters. Each gene's span now ships as
+// data/seq_<GENE>.txt (1.6 Mb total, one gene loaded at a time).
+for (const g of GN) {
+  const f = `data/seq_${g}.txt`;
+  ok(has(f), `seq: ${f} exists`);
+  if (!has(f)) continue;
+  const t = fs.readFileSync(path.join(R, f), 'utf8').trim();
+  const want = GENES[g].end - GENES[g].start + 1;
+  // Length IS the correctness check. A file one base short shifts every base in the zoom by an
+  // offset and still looks exactly like sequence -- there is no visual tell.
+  ok(t.length === want, `seq: ${g} is ${t.length} bp, gene span is ${want} bp`);
+  ok(/^[ACGTN]+$/.test(t), `seq: ${g} contains only ACGTN`);
+  ok(!/^N+$/.test(t.slice(0, 200)), `seq: ${g} does not start with 200 N's (a failed fetch padded out)`);
+}
+ok(/data\/seq_/.test(page), 'seq: the page loads the shipped sequence');
+ok(/fetchGeneSeq/.test(page), 'seq: sequence is fetched with the gene, not per zoom window');
+// the length guard has to exist in the page too, not just here
+ok(/t\.length !== want/.test(page), 'seq: the page refuses a sequence file of the wrong length');
+
+/* ---- the zoom is operable ------------------------------------------------------------------------ */
+// The panel printed "zoom to under ~350 bp" while offering nothing that could narrow the window.
+ok(/id="zin"/.test(page) && /id="zout"/.test(page), 'zoom: has zoom in and out controls');
+ok(/id="zpl"/.test(page) && /id="zpr"/.test(page), 'zoom: has pan controls');
+ok(/id="zbases"/.test(page), 'zoom: has a control that jumps to a width where bases render');
+ok(/function setWin/.test(page), 'zoom: the window can be set from more than a strip-bin click');
+ok(/pointerdown/.test(page) && /wheel/.test(page), 'zoom: drag-select and wheel-zoom are wired');
+// Copy checks must read what a USER sees, not the source. Comments in this file legitimately quote
+// the old wording to explain why it changed, and matching those made the assertions self-defeating:
+// the better the comment, the more certain the failure.
+const visible = page.replace(/<!--[\s\S]*?-->/g, '')     // HTML comments
+                    .replace(/\/\*[\s\S]*?\*\//g, '')     // JS and CSS block comments
+                    .replace(/^\s*\/\/.*$/gm, '');        // JS line comments
+ok(!/zoom to under/.test(visible), 'zoom: no instruction the interface cannot obey');
+
+/* ---- the legend explains itself ------------------------------------------------------------------- */
+// Overlapping translucent deletion bands compound into what looks like a heatmap encoding a value.
+// It encodes only how many deletions cover a base, and that has to be said where it is seen.
+ok(/not a heatmap/i.test(page), 'legend: says the stacked deletion bands are not a heatmap');
+ok(/build list/i.test(page), 'legend: says what right-click actually does');
+ok(/cannot hold an API key/.test(page), 'legend: says why nothing runs in the browser');
+ok(!/Left-click opens, right-click queues/.test(visible),
+   'legend: no bare "left-click opens, right-click queues"');
+
 /* ---- favicon ----------------------------------------------------------------------------------- */
 // A favicon that 404s looks identical to no favicon at all: a blank page glyph, which is exactly
 // what makes a tab unfindable. Both files must exist and both must be referenced.

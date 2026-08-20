@@ -355,6 +355,9 @@ def main():
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--control", action="store_true", help="run data/control_set.json instead of a bucket")
+    # The browser's right-click queue copies exactly this. It has done since the queue was built,
+    # and the flag did not exist, so the button handed you a command that died on argparse.
+    ap.add_argument("--queue", help='comma-separated "<rsid-or-pos>:<REF><ALT>" from the browser queue')
     a = ap.parse_args()
 
     genes = json.load(open(os.path.join(ROOT, "data/genes.json")))
@@ -375,7 +378,8 @@ def main():
     if not variants:
         sys.exit("no data/variants_*.json found -- run the per-gene split first")
     targets = list(genes) if a.all else [a.gene]
-    if not a.control and (not targets or targets == [None]):
+    # --queue names its own variants and searches every gene, so it needs no --gene/--all
+    if not a.control and not a.queue and (not targets or targets == [None]):
         sys.exit("give --gene GENE or --all")
 
     outdir = os.path.join(ROOT, "images/panels"); os.makedirs(outdir, exist_ok=True)
@@ -439,6 +443,54 @@ def main():
         log("")
         log("wrote data/panels_control.json")
         return
+
+    if a.queue:
+        # Resolve each queued entry through buckets_for, so _dist/_intron/_istart/_iend are computed
+        # by the same code the buckets use. Recomputing them here would be a second implementation
+        # of the arithmetic that has already been wrong once in this file.
+        want = []
+        for tok in a.queue.split(","):
+            tok = tok.strip()
+            if not tok or ":" not in tok:
+                continue
+            ident, alleles = tok.rsplit(":", 1)
+            want.append((ident.strip(), alleles.strip().upper()))
+        if not want:
+            sys.exit("--queue got nothing parseable; expected rs123:CT,45678:AG")
+        pool, seen = [], set()
+        for gene in genes:
+            b, _ex, _g = buckets_for(gene, genes, variants)
+            for v in b["canonical"] + b["spliceregion"] + b["deep"]:
+                for ident, alleles in want:
+                    if (str(v.get("rsid")) == ident or str(v["pos"]) == ident) and                        (str(v["ref"]) + str(v["alt"])).upper() == alleles:
+                        key = (gene, v["pos"], v["ref"], v["alt"])
+                        if key not in seen:
+                            seen.add(key); pool.append((gene, v))
+        found = {(i, al) for i, al in want
+                 if any(str(v.get("rsid")) == i or str(v["pos"]) == i for _gn, v in pool)}
+        missing = [f"{i}:{al}" for i, al in want if (i, al) not in found]
+        log("")
+        log(f"=== queue: {len(want)} requested, {len(pool)} resolved ===")
+        if missing:
+            # An indel or a coding variant is filtered out by buckets_for before it gets here, and
+            # a silent short list would read as "these are all that exist".
+            log(f"    {len(missing)} not found among intronic substitutions (queue skips exonic variants and indels: AlphaGenome scores single-base substitutions, and buckets are intron-only): {', '.join(missing)}")
+        for gene, v in pool[: a.limit] if a.limit else pool:
+            tag = f"{gene} {v.get('rsid') or v['pos']}"
+            ok, why = preflight(v, genes[gene], gene, seq_cache)
+            if not ok:
+                log(f"  REFUSED {tag}: {why}"); refused.append({"tag": tag, "reason": why}); continue
+            if a.dry:
+                # --dry leaves model/genome as None, so draw() cannot be called at all here.
+                log(f"  would draw {tag}  {v['ref']}>{v['alt']}  {v['_dist']} bp from splice site")
+                continue
+            try:
+                rec = draw(v, genes[gene], gene, model, dna_client, genome, outdir)
+                if rec: done.append(rec); log(f"  OK       {tag}")
+            except Exception as e:
+                log(f"  FAILED   {tag}: {type(e).__name__}: {e}")
+                failed.append({"tag": tag, "error": f"{type(e).__name__}: {e}"})
+        targets = []
 
     for gene in targets:
         b, ex, g = buckets_for(gene, genes, variants)

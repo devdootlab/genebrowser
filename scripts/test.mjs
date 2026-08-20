@@ -165,6 +165,37 @@ ok(/AlphaGenome scores substitutions only/.test(page),
   ok(vt({ref:'CAAAAAAAAAAAAA',alt:'C'}).d === -13, 'indels: a 13-base deletion reports -13, not -14 or -1');
 }
 
+/* ---- favicon ----------------------------------------------------------------------------------- */
+// A favicon that 404s looks identical to no favicon at all: a blank page glyph, which is exactly
+// what makes a tab unfindable. Both files must exist and both must be referenced.
+ok(has('favicon.svg'), 'icon: favicon.svg exists');
+ok(has('favicon.png'), 'icon: favicon.png exists (fallback for browsers without SVG icon support)');
+ok(/rel="icon"[^>]*favicon\.svg/.test(page), 'icon: the page links favicon.svg');
+ok(/favicon\.png/.test(page), 'icon: the page links the PNG fallback');
+{
+  // SVG is XML, and this repo writes `--` in comments everywhere. A double hyphen inside an XML
+  // comment is a hard parse error, so the first version of favicon.svg served HTTP 200 with the
+  // right content-type and would not decode. Nothing looked wrong: a favicon that fails to parse
+  // renders exactly like no favicon.
+  const svg = fs.readFileSync(path.join(R, 'favicon.svg'), 'utf8');
+  const comments = svg.match(/<!--[\s\S]*?-->/g) || [];
+  ok(comments.every(c => !/--/.test(c.slice(4, -3))),
+     'icon: no double hyphen inside an SVG comment (hard XML parse error)');
+  ok(/^\s*<svg[\s>]/.test(svg) && /<\/svg>\s*$/.test(svg), 'icon: favicon.svg opens and closes an <svg> root');
+  // crude well-formedness: every non-void tag that opens must close, and vice versa
+  const opens = (svg.match(/<(svg|g|path|circle|title|defs|use)\b(?![^>]*\/>)/g) || []).length;
+  const closes = (svg.match(/<\/(svg|g|path|circle|title|defs|use)>/g) || []).length;
+  ok(opens === closes, `icon: favicon.svg tags balance (${opens} open, ${closes} close)`);
+
+  // a real PNG, not a pasted blob nobody rendered
+  const b = fs.readFileSync(path.join(R, 'favicon.png'));
+  ok(b.slice(0, 8).toString('hex') === '89504e470d0a1a0a', 'icon: favicon.png has a valid PNG signature');
+  ok(b.readUInt32BE(16) === 32 && b.readUInt32BE(20) === 32, 'icon: favicon.png is 32x32');
+  ok(b[25] === 6, 'icon: favicon.png is RGBA, so the corners are transparent not black');
+}
+ok(!/href="data:image\/png;base64/.test(page),
+   'icon: no inline base64 image (an icon nobody rendered is indistinguishable from a corrupt one)');
+
 /* ---- secrets ------------------------------------------------------------------------------------ */
 ok(has('.gitignore'), 'repo: a .gitignore exists');
 if (has('.gitignore')) {

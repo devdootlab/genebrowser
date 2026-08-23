@@ -1,0 +1,1 @@
+{"generated_from":"scripts/analyse_cbpp.mjs","threshold":0.13134765625,"threshold_source":"max splice_maxabsdiff over 30 AF-matched deep-intronic negatives in data/panels_control.json","positive_min":0.933837890625,"screened":100,"arm_counts":{"abundance":100,"hint":0,"null":0},"arm_hits":{"abundance":0,"hint":0,"null":0},"rows":[]}

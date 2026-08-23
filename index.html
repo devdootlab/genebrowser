@@ -50,6 +50,14 @@ tr.sel td{background:rgba(31,111,178,.13)}
 .kv b{color:var(--faint);font-weight:400}
 a{color:var(--accent)}
 .empty{padding:22px;color:var(--faint);text-align:center}
+#cbwrap{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:14px 16px;margin:0 0 14px}
+#cbwrap h2{font-size:15px;margin:0 0 6px}
+#cbwrap table{margin-top:10px;min-width:0}
+#cbwrap td.jump{color:var(--accent);cursor:pointer;text-decoration:underline;white-space:nowrap}
+.armtag{font-size:10.5px;padding:1px 6px;border-radius:4px;border:1px solid var(--rule);color:var(--faint)}
+.cbnote{font-size:12px;color:var(--faint);margin:6px 0 0;line-height:1.55}
+.cbstat{display:flex;gap:18px;flex-wrap:wrap;margin:9px 0 2px;font-size:12.5px}
+.cbstat b{font-variant-numeric:tabular-nums}
 #zoomwrap{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:9px 11px;margin:12px 0}
 .zbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 7px}
 .zbar button{font:inherit;font-size:12px;padding:3px 9px;border:1px solid var(--rule);border-radius:5px;
@@ -72,6 +80,7 @@ a{color:var(--accent)}
 <p class="sub">Table first. The strip is for orientation, not for reading values off.</p>
 
 <div class="genes" id="genes"></div>
+<div id="cbwrap" hidden></div>
 
 <div class="honest" id="honest"></div>
 
@@ -279,7 +288,19 @@ function drawGenes(){
       $('#find').value = ''; drawGenes(); loadGene(g, render); };
     n.appendChild(b);
   });
+  // cb++ is a VIEW, not a gene, so it sits at the end of the gene bar and toggles a panel rather
+  // than loading anything. Its count is how many variants the model flagged, not a corpus size.
+  var cb = document.createElement('button');
+  cb.className = 'g'; cb.type = 'button'; cb.style.marginLeft = '10px';
+  cb.setAttribute('aria-pressed', String(CBVIEW));
+  cb.innerHTML = 'cb++<span class="c">' + (CBPP ? CBPP.rows.length.toLocaleString() : '…') + '</span>';
+  cb.onclick = function(){ CBVIEW = !CBVIEW; drawGenes(); drawCbpp(); };
+  n.appendChild(cb);
 }
+
+var CBPP = null, CBVIEW = false;
+fetch('data/cbpp.json').then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(j){ CBPP = j; drawGenes(); if (CBVIEW) drawCbpp(); }).catch(function(){});
 
 function forGene(){ var a = LOADED[GENE] || []; return SHOWCODING ? a : a.filter(function(r){ return !r.coding; }); }
 
@@ -900,6 +921,87 @@ function detail(r){
       'Five of the eleven curated variants currently carry a reference base that does not match the genome — ' +
       'check before trusting a panel.</p>' : '') + '</div>';
   d.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* cb++ — variants an ML model flags, from a screen carrying its own matched null arm.
+   The panel leads with the ARM COMPARISON, not the hit list. A hit list on its own cannot be told
+   apart from a model that flags a fixed 2% of anything you hand it, and that is precisely the
+   objection this whole category was built to survive. */
+function drawCbpp(){
+  var w = $('#cbwrap');
+  if (!CBVIEW) { w.hidden = true; return; }
+  w.hidden = false;
+  if (!CBPP) {
+    w.innerHTML = '<h2>cb++</h2><p class="cbnote">No screen results on disk yet ' +
+      '(<code>data/cbpp.json</code>). Run <code>make_panels.py --cbpp --nofig</code>, then ' +
+      '<code>node scripts/analyse_cbpp.mjs</code>.</p>';
+    return;
+  }
+  var A = CBPP.arm_counts || {}, H = CBPP.arm_hits || {};
+  var rate = function(a){ return A[a] ? (100 * (H[a] || 0) / A[a]).toFixed(1) + '%' : '—'; };
+  var h = '<h2>cb++ — ' + CBPP.rows.length.toLocaleString() + ' variants flagged by AlphaGenome</h2>';
+  h += '<p class="cbnote"><b>What makes a variant cb++:</b> it is in a coagulation gene; it was ' +
+       'called in gnomAD <i>genomes</i> rather than exome off-target; it is not sitting in a ' +
+       'homopolymer or tandem repeat; it is <b>at least 100 bp from any splice boundary</b>, so it ' +
+       'is not a donor/acceptor hit whose mechanism we already understand — and a machine-learning ' +
+       'model predicts a larger effect on splicing than any of 30 frequency-matched controls showed.</p>';
+  h += '<div class="cbstat"><span>threshold <b>' + CBPP.threshold.toFixed(4) + '</b></span>' +
+       '<span>screened <b>' + CBPP.screened.toLocaleString() + '</b></span>' +
+       '<span>for scale, a canonical splice-killer scores <b>' + CBPP.positive_min.toFixed(2) + '</b> or more</span></div>';
+  h += '<table><thead><tr><th>arm</th><th>what it is</th><th class="n">screened</th>' +
+       '<th class="n">flagged</th><th class="n">rate</th></tr></thead><tbody>' +
+       '<tr><td>abundance</td><td>common (AF ≥ 1%), no functional prior</td><td class="n">' + (A.abundance || 0) +
+         '</td><td class="n">' + (H.abundance || 0) + '</td><td class="n">' + rate('abundance') + '</td></tr>' +
+       '<tr><td>hint</td><td>phyloP ≥ 1, or CADD ≥ 10, or SpliceAI ≥ 0.05</td><td class="n">' + (A.hint || 0) +
+         '</td><td class="n">' + (H.hint || 0) + '</td><td class="n">' + rate('hint') + '</td></tr>' +
+       '<tr><td><b>null</b></td><td><b>no hint at all, frequency-matched to the other two</b></td><td class="n">' + (A['null'] || 0) +
+         '</td><td class="n">' + (H['null'] || 0) + '</td><td class="n">' + rate('null') + '</td></tr>' +
+       '</tbody></table>';
+  h += '<p class="cbnote">The <b>null</b> row is the control, and it is the row to read first. If ' +
+       'its rate matches the other two, the model is flagging a fixed share of whatever it is given ' +
+       'and nothing above it means what it appears to mean.</p>';
+
+  if (!CBPP.rows.length) {
+    h += '<p class="cbnote"><b>Nothing cleared the threshold.</b> That is a result rather than a ' +
+         'gap: it says these genes carry no deep-intronic variant that this model expects to ' +
+         'disturb splicing more than a matched control variant does.</p>';
+    w.innerHTML = h; return;
+  }
+
+  h += '<table><thead><tr><th>gene</th><th>variant</th><th class="n">AF</th><th class="n">bp to splice site</th>' +
+       '<th class="n">phyloP</th><th class="n">SpliceAI</th><th class="n">AlphaGenome</th><th>arm</th><th></th>' +
+       '</tr></thead><tbody>';
+  CBPP.rows.forEach(function(r, i){
+    h += '<tr><td>' + r.gene + '</td><td class="mono">' + (r.rsid || r.pos) + ' ' + r.ref + '&gt;' + r.alt + '</td>' +
+      '<td class="n">' + (r.af == null ? '—' : (r.af >= 0.001 ? (r.af * 100).toFixed(2) + '%' : (r.af * 100).toExponential(1) + '%')) + '</td>' +
+      '<td class="n">' + r.dist_splice.toLocaleString() + '</td>' +
+      '<td class="n">' + (r.phylop == null ? '—' : r.phylop.toFixed(2)) + '</td>' +
+      '<td class="n">' + (r.spliceai_gnomad == null ? '—' : r.spliceai_gnomad) + '</td>' +
+      '<td class="n"><b style="color:#1f6fb2">' + r.splice_maxabsdiff.toFixed(4) + '</b></td>' +
+      '<td><span class="armtag">' + r.arm + '</span></td>' +
+      '<td class="jump" data-cb="' + i + '">open ›</td></tr>';
+  });
+  h += '</tbody></table>';
+  w.innerHTML = h;
+
+  // Each row jumps to that variant IN ITS OWN GENE: switch gene, zoom to it, select it, open its
+  // detail card. Without this the table is a dead end, and the whole point is getting from a
+  // flagged variant to the context that lets you judge it.
+  w.querySelectorAll('[data-cb]').forEach(function(el){
+    el.onclick = function(){
+      var r = CBPP.rows[+el.getAttribute('data-cb')];
+      CBVIEW = false; GENE = r.gene; CONS = null; BAND = null; ONLY = null; SEL = null;
+      $('#find').value = '';
+      drawGenes(); drawCbpp();
+      loadGene(r.gene, function(){
+        WIN = [r.pos - 150, r.pos + 150]; BINSEL = null;
+        render();
+        var hit = shown().filter(function(x){ return x.pos === r.pos && x.ref === r.ref && x.alt === r.alt; })[0];
+        if (hit) { SEL = hit; render(); detail(hit); }
+        $('#zoomwrap').scrollIntoView({ block: 'center' });
+      });
+    };
+  });
 }
 
 function render(){

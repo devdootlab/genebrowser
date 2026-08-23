@@ -116,19 +116,33 @@ const armA = pick(pool.filter(v => v.af >= 0.01).sort((a,b) => (b.af*b.gene_weig
 // B — functional hint, then abundance
 const armB = pick(pool.filter(v => v.hint).sort((a,b) => (b.af*b.gene_weight) - (a.af*a.gene_weight)), N_B, 'hint');
 
-// C — AF-matched null, no hint. Match on log10(AF) deciles of the pooled A+B.
-const AB = armA.concat(armB);
+// C — AF-matched null, no hint.
+//
+// MATCH TO EACH ARM SEPARATELY, NOT TO THEIR POOL. The first version matched the pooled A+B, and
+// that pool is BIMODAL: arm A has median AF 32%, arm B has 0.6%. A distribution matched to the
+// mixture sat at 18% and therefore matched neither -- KS distance 0.333 against the pool it was
+// supposed to mirror, 30x too common for arm B. The comparison it was built to support was
+// confounded by the very variable it was meant to control.
+//
+// Matching each arm and concatenating gives a null whose AF distribution is the same MIXTURE, so
+// every band contains controls drawn at that band's frequency. Band-stratified analysis then
+// compares like with like, which pooled matching cannot do when the pool is multi-modal.
 const bin = af => Math.round(Math.log10(af) * 2) / 2;          // half-decade bins
+// how many controls each arm needs, per band, kept SEPARATE
 const wantPerBin = {};
-for (const v of AB) wantPerBin[bin(v.af)] = (wantPerBin[bin(v.af)] || 0) + 1;
-const scale = N_C / AB.length;
+for (const [arm, n] of [[armA, N_C * armA.length / (armA.length + armB.length)],
+                        [armB, N_C * armB.length / (armA.length + armB.length)]]) {
+  const per = {};
+  for (const v of arm) per[bin(v.af)] = (per[bin(v.af)] || 0) + 1;
+  for (const k of Object.keys(per)) wantPerBin[k] = (wantPerBin[k] || 0) + per[k] * (n / arm.length);
+}
 const noHintByBin = {};
 for (const v of pool) if (!v.hint && !taken.has(key(v))) (noHintByBin[bin(v.af)] ||= []).push(v);
 
 const armC = [];
 const shortfall = {};
 for (const b of Object.keys(wantPerBin)) {
-  const want = Math.round(wantPerBin[b] * scale);
+  const want = Math.round(wantPerBin[b]);
   const avail = noHintByBin[b] || [];
   // Fisher-Yates with the seeded generator, so the same seed gives the same control arm
   for (let i = avail.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [avail[i], avail[j]] = [avail[j], avail[i]]; }

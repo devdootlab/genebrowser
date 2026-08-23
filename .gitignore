@@ -5,4 +5,11 @@ __pycache__/
 node_modules/
 .DS_Store
 *.log
+# Figures are regenerable from the manifests, so panels/ is not committed. The cb++ candidates are
+# the exception and live in their own directory: they are the evidence behind a claim the site
+# makes, and a claim whose evidence 404s is worse than no claim. Git cannot re-include a file
+# inside an ignored directory, and every figure shares the *_rich.png suffix, so a negation
+# pattern could not have selected them -- hence a separate folder.
 images/panels/
+
+

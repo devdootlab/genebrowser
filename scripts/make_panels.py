@@ -563,7 +563,14 @@ def main():
             # An indel or a coding variant is filtered out by buckets_for before it gets here, and
             # a silent short list would read as "these are all that exist".
             log(f"    {len(missing)} not found among intronic substitutions (queue skips exonic variants and indels: AlphaGenome scores single-base substitutions, and buckets are intron-only): {', '.join(missing)}")
-        for gene, v in pool[: a.limit] if a.limit else pool:
+        # --limit exists to sample a BUCKET. A queue is an explicit list of variants somebody
+        # named, so the default limit of 10 silently drew 10 of 42 and reported success. Honour
+        # --limit only when it was actually typed.
+        _explicit_limit = any(x == "--limit" or x.startswith("--limit=") for x in sys.argv)
+        _sel = pool[: a.limit] if _explicit_limit else pool
+        if not _explicit_limit and len(pool) > len(_sel):
+            log(f"    (running all {len(pool)}; pass --limit to cap)")
+        for gene, v in _sel:
             tag = f"{gene} {v.get('rsid') or v['pos']}"
             ok, why = preflight(v, genes[gene], gene, seq_cache)
             if not ok:
@@ -643,7 +650,11 @@ def main():
         # its own manifest. Sharing one filename let the centre run silently replace the
         # SpliceAI run, leaving 14 figures on disk that no manifest claimed.
         _suffix = f"_{a.peakpick}" if (a.bucket == "peak" and a.peakpick != "auto") else ""
-        p = os.path.join(ROOT, f"data/panels_{a.bucket}{_suffix}.json")
+        # --queue does not set --bucket, so it inherited the default "canonical" and merged
+        # arbitrary queued variants into the known-answer manifest -- which is the one bucket whose
+        # median effect size is asserted by the test suite. A queue gets its own file.
+        _name = "queue" if a.queue else (a.bucket + _suffix)
+        p = os.path.join(ROOT, f"data/panels_{_name}.json")
         # MERGE, do not overwrite. One --gene call per gene is the normal way to run this, and a
         # plain overwrite meant a 16-gene loop drew 16 figures and recorded 1: the PNGs were on disk
         # with nothing in the manifest pointing at them, which is a silent loss, not an error.
@@ -659,7 +670,7 @@ def main():
         def _merge(old_rows, new_rows, key):
             fresh = {r.get(key) for r in new_rows}
             return [r for r in old_rows if r.get(key) not in fresh] + new_rows
-        out = {"renderer": RENDERER, "bucket": a.bucket,
+        out = {"renderer": RENDERER, "bucket": ("queue" if a.queue else a.bucket),
                "drawn":   _merge(prev.get("drawn", []), done, "id"),
                "refused": _merge(prev.get("refused", []), refused, "tag"),
                "failed":  _merge(prev.get("failed", []), failed, "tag")}

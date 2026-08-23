@@ -153,8 +153,16 @@ var COLS = [
                 return '<b style="color:'+c+'">'+r.spliceai.toFixed(2)+'</b>'; }},
   {k:'phylop', label:'phyloP', num:true, get:function(r){return r.phylop==null?null:r.phylop;},
               fmt:function(r){return r.phylop==null?'&mdash;':r.phylop.toFixed(2);}},
-  {k:'panel', label:'AlphaGenome', num:true, get:function(r){var p=PANELS[pkey(r)];return p?Math.abs(p.splice_log2fc):null;},
-              fmt:function(r){var p=PANELS[pkey(r)];return p?('<b style="color:#1f6fb2">'+p.splice_log2fc.toFixed(3)+'</b>'):'&mdash;';}}
+  // splice_maxabsdiff, NOT splice_log2fc. The log-ratio was measured against 30 canonical positives
+  // and 30 AF-matched negatives and had 100% OVERLAP between them -- it cannot distinguish a
+  // destroyed splice site from a random intronic base. It was retracted as a metric here, and then
+  // went on powering this sortable column, so the column sorted by noise.
+  {k:'panel', label:'AlphaGenome', num:true,
+              get:function(r){var p=PANELS[pkey(r)];return p&&p.splice_maxabsdiff!=null?p.splice_maxabsdiff:null;},
+              fmt:function(r){var p=PANELS[pkey(r)];
+                if(!p||p.splice_maxabsdiff==null) return '&mdash;';
+                var c = p.splice_maxabsdiff>0.9?'var(--neg)':p.splice_maxabsdiff>0.1387?'#1f6fb2':'var(--faint)';
+                return '<b style="color:'+c+'">'+p.splice_maxabsdiff.toFixed(3)+'</b>'; }}
 ];
 
 var CONS_MAP = [
@@ -264,13 +272,29 @@ function fetchGeneSeq(g){
 window.REFBAD = {};
 fetch('data/ref_mismatch.json').then(function(r){return r.json();}).then(function(j){ window.REFBAD = j; }).catch(function(){});
 
+/* EVERY panel manifest, not just panels.json.
+   The page loaded one manifest while make_panels.py writes a separate file per bucket, so the
+   canonical, control, peak, cb++ and queued results were all invisible here: the AlphaGenome column
+   read "—" and a variant's detail card said "no panel" for figures that existed on disk. Worst
+   case, the cb++ table pointed at 42 variants whose scores the page could not show.
+   scripts/test.mjs fails if a data/panels*.json exists that is not in this list, because a browser
+   cannot list a directory and a hand-kept list drifts silently. */
+var PANEL_FILES = ['data/panels.json', 'data/panels_canonical.json', 'data/panels_spliceai.json',
+                   'data/panels_control.json', 'data/panels_peak.json', 'data/panels_peak_centre.json',
+                   'data/panels_cbpp.json', 'data/panels_queue.json'];
 Promise.all([
   fetch('data/genes.json').then(function(r){return r.json();}),
-  fetch('data/panels.json').then(function(r){return r.json();}).catch(function(){return {drawn:[]};}),
+  Promise.all(PANEL_FILES.map(function(f){
+    return fetch(f).then(function(r){ return r.ok ? r.json() : {drawn:[]}; }).catch(function(){ return {drawn:[]}; });
+  })),
   fetch('data/spike_classification.json').then(function(r){return r.json();}).catch(function(){return {};})
 ]).then(function(a){
   GENES = a[0];
-  (a[1] && a[1].drawn || []).forEach(function(p){ PANELS[(p.rsid || p.pos) + '_' + p.ref + p.alt] = p; });
+  // Later files win, so a re-run overwrites an older score for the same variant rather than the
+  // first one loaded silently sticking.
+  (a[1] || []).forEach(function(m){
+    (m && m.drawn || []).forEach(function(p){ PANELS[(p.rsid || p.pos) + '_' + p.ref + p.alt] = p; });
+  });
   SPIKES = a[2] || {};
   GENE = Object.keys(GENES)[0];
   drawGenes();
@@ -721,7 +745,7 @@ function paintZoom(){
            '\nchr' + String(g.chrom).replace('chr','') + ':' + r.pos.toLocaleString() +
            (t.kind === 'del' ? ' (removes ' + vspan(r)[0].toLocaleString() + '–' + (vspan(r)[1] - 1).toLocaleString() + ')' : '') +
            '\nAF ' + (r.af == null ? 'none' : r.af.toExponential(2)) + '\n' + consOf(r) +
-           (p ? '\nAlphaGenome ' + p.splice_log2fc.toFixed(3)
+           (p ? '\nAlphaGenome max|Δ| ' + (p.splice_maxabsdiff != null ? p.splice_maxabsdiff.toFixed(4) : '?')
               : t.kind === 'SNV' ? '\nno panel' : '\nno panel — AlphaGenome scores substitutions only') +
            '\n\nleft-click: open   right-click: queue</title>';
     // A deletion's footprint: the bases it actually removes, shaded down to the axis.
@@ -901,7 +925,14 @@ function detail(r){
             ['change', r.ref + '>' + r.alt], ['HGVS', r.hgvs || '—'],
             ['consequence', r.consequence || '—'], ['gnomAD AF', cellOf(colOf('af'), r)],
             ['band', band(r)], ['ClinVar', r.clinvar || '—'],
-            ['AlphaGenome Δ', r.delta == null ? 'not computed' : r.delta.toExponential(3)]];
+            // r.delta is a field on the VARIANT ROW, left over from the curated set. No gnomAD row
+            // has one, so this read "not computed" for every variant in the browser — including
+            // ones whose own AlphaGenome figure was rendered directly underneath it.
+            ['AlphaGenome', (function(){ var p = PANELS[pkey(r)];
+               if (!p || p.splice_maxabsdiff == null) return 'not computed';
+               var v = p.splice_maxabsdiff;
+               return v.toFixed(4) + (v > 0.9 ? ' — splice-site range' : v > 0.1387
+                 ? ' — above the matched-control ceiling' : ' — within control range'); })()]];
   d.innerHTML = '<div class="det">' +
     (mism ? '<div style="border-left:3px solid #c9524a;background:rgba(163,53,44,.10);padding:8px 11px;margin-bottom:10px;font-size:12.5px">' +
       '<b style="color:#c9524a">Do not trust any figure for this variant.</b> Its stated reference base is not the base at that ' +
@@ -914,8 +945,26 @@ function detail(r){
     kv.map(function(p){ return '<b>' + p[0] + '</b><span>' + p[1] + '</span>'; }).join('') + '</div>' +
     (function(){ var p = PANELS[pkey(r)];
       if (!p) return '';
-      return '<p class="slab" style="margin-top:8px;color:#1f6fb2">Corrected pipeline &middot; 667 tracks &middot; splice-site readout &middot; reference base verified &middot; splice ' +
-        p.splice_log2fc.toFixed(3) + ' log2FC</p><img src="' + p.rich_img + '" alt="AlphaGenome panel">'; })() +
+      // A figure can legitimately be absent: --nofig screens record a score and draw nothing, and
+      // images/panels is gitignored. A broken image icon sitting under a caption that claims a
+      // verified pipeline is worse than saying plainly which of those happened.
+      var cap = '<p class="slab" style="margin-top:8px;color:#1f6fb2">Corrected pipeline &middot; 667 tracks &middot; ' +
+        'splice-site readout &middot; reference base verified &middot; max|&Delta;| ' +
+        (p.splice_maxabsdiff != null ? p.splice_maxabsdiff.toFixed(4) : '?') + '</p>';
+      // cb++ candidates keep a copy of their figure in images/cbpp/, which IS committed. Everything
+      // in images/panels/ is gitignored and regenerable, so it is present locally and absent in a
+      // clone. Prefer the committed path when the variant is a cb++ candidate.
+      var cbrow = CBPP && CBPP.rows && CBPP.rows.filter(function(x){
+        return x.gene === GENE && x.pos === r.pos && x.ref === r.ref && x.alt === r.alt; })[0];
+      var src = (cbrow && cbrow.cbpp_img) || p.rich_img;
+      if (!src) return cap + '<p class="slab">Scored, not drawn — this variant came from a ' +
+        '<code>--nofig</code> screen. Draw it with <code>make_panels.py --queue "' +
+        (r.rsid || r.pos) + ':' + r.ref + r.alt + '"</code></p>';
+      var im = document.createElement('img');
+      im.setAttribute('src', src); im.setAttribute('alt', 'AlphaGenome panel');
+      im.setAttribute('onerror', "this.replaceWith(Object.assign(document.createElement('p')," +
+        "{className:'slab',textContent:'Figure not present in this copy — regenerate from the manifest.'}))");
+      return cap + im.outerHTML; })() +
     (r.rich ? '<img src="' + r.rich + '" alt="AlphaGenome panel for ' + r.rsid + '">' +
       '<p class="slab" style="margin-top:6px">AlphaGenome PREDICTION, not a measurement. ' +
       'Five of the eleven curated variants currently carry a reference base that does not match the genome — ' +

@@ -1,0 +1,56 @@
+{
+  "_what": "Clinical weight per gene for the cb++ score. EDIT THIS -- it is a domain judgment, not a measurement, and it is deliberately in its own file so it can be argued with without touching code.",
+  "_scale": "1.00 = a gene whose disruption causes a named, common, clinically managed coagulopathy. 0.40 = coagulation-adjacent, real but seldom the thing a haematologist is looking for.",
+  "_note": "OAS1 and GSDMB are immune genes carried over from 13-intronhunt. They are 0 so they never enter cb++, but they stay in the browser as an out-of-domain comparison set.",
+
+  "F8": 1.00,
+  "F9": 1.00,
+  "VWF": 1.00,
+  "F5": 1.00,
+  "F2": 1.00,
+  "SERPINC1": 1.00,
+  "PROC": 1.00,
+  "PROS1": 1.00,
+
+  "F7": 0.85,
+  "F10": 0.85,
+  "F11": 0.85,
+  "F13A1": 0.85,
+  "FGA": 0.85,
+  "FGB": 0.85,
+  "FGG": 0.85,
+  "ADAMTS13": 0.85,
+  "VKORC1": 0.85,
+
+  "F13B": 0.70,
+  "THBD": 0.70,
+  "PROCR": 0.70,
+  "TFPI": 0.70,
+  "SERPIND1": 0.70,
+  "GGCX": 0.70,
+  "SERPINF2": 0.70,
+  "PLG": 0.70,
+
+  "F3": 0.55,
+  "SERPINE1": 0.55,
+  "PLAT": 0.55,
+  "LMAN1": 0.55,
+  "MCFD2": 0.55,
+  "SERPINA5": 0.55,
+  "PROZ": 0.55,
+
+  "F12": 0.40,
+  "KLKB1": 0.40,
+  "KNG1": 0.40,
+
+  "OAS1": 0,
+  "GSDMB": 0,
+
+  "_rationale": {
+    "1.00": "F8/F9 haemophilia A and B; VWF von Willebrand disease -- the three commonest inherited bleeding disorders. F5 and F2 carry the two commonest inherited thrombophilias (Factor V Leiden, prothrombin G20210A). SERPINC1/PROC/PROS1 are the classical severe thrombophilias.",
+    "0.85": "Named rare factor deficiencies that are diagnosed and treated. ADAMTS13 is TTP. VKORC1 is here for pharmacogenomic reach rather than deficiency -- it is the principal warfarin dosing locus, so a regulatory variant has direct prescribing relevance.",
+    "0.70": "Real coagulation biology with a smaller or more variable clinical footprint.",
+    "0.55": "Coagulation-adjacent: initiation, fibrinolysis, secretion chaperones. A finding here needs more argument.",
+    "0.40": "Contact activation. FXII and prekallikrein deficiency prolong aPTT without causing bleeding, which is exactly the 'no human relevance' objection this score exists to avoid."
+  }
+}

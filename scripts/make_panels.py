@@ -216,7 +216,7 @@ def preflight(v, g, gene, seq_cache):
 
 
 # ---- figure -------------------------------------------------------------------------------------
-def draw(v, g, gene, model, dna_client, genome, outdir):
+def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -322,14 +322,20 @@ def draw(v, g, gene, model, dna_client, genome, outdir):
 
     stem = f"{gene}_{v.get('rsid') or str(pos)}_{ref}{alt}"
     png = os.path.join(outdir, stem + "_rich.png")
-    fig.savefig(png, dpi=110); plt.close(fig)
+    # A screen needs the NUMBER, not the picture. 2,000 panels at ~200 KB is 400 MB of figures
+    # nobody opens, and the scores are what decide which handful is worth looking at. Draw those
+    # afterwards with --queue, which takes exactly the ids this run produces.
+    if savefig:
+        fig.savefig(png, dpi=110)
+    plt.close(fig)
     return {"id": stem, "gene": gene, "rsid": v.get("rsid"), "chrom": chrom, "pos": pos,
             "ref": ref, "alt": alt, "af": v.get("af"), "dist_splice": v["_dist"],
             "intron": f"{v['_intron']}/{v['_nintrons']}", "delta_log2fc": delta,
             "splice_log2fc": splice_delta, "splice_maxabsdiff": splice_absdiff,
             "splice_track_index": sti, "n_splice_tracks": int(SR.shape[1]),
             "track_index": ti, "n_tracks": int(RV.shape[1]), "track": track_name,
-            "renderer": RENDERER, "rich_img": os.path.relpath(png, ROOT).replace("\\", "/"),
+            "renderer": RENDERER,
+            "rich_img": (os.path.relpath(png, ROOT).replace("\\", "/") if savefig else None),
             # Provenance for --bucket peak. A result whose selection rule cannot be recovered from
             # the manifest is not reproducible, and this selection has already silently changed
             # rule once. Absent for every other bucket.
@@ -358,6 +364,9 @@ def main():
     # The browser's right-click queue copies exactly this. It has done since the queue was built,
     # and the flag did not exist, so the button handed you a command that died on argparse.
     ap.add_argument("--queue", help='comma-separated "<rsid-or-pos>:<REF><ALT>" from the browser queue')
+    ap.add_argument("--cbpp", action="store_true",
+                    help="run data/cbpp_screen.json -- the 2,000-variant stratified cb++ screen")
+    ap.add_argument("--nofig", action="store_true", help="compute scores without writing PNGs")
     a = ap.parse_args()
 
     genes = json.load(open(os.path.join(ROOT, "data/genes.json")))
@@ -379,7 +388,7 @@ def main():
         sys.exit("no data/variants_*.json found -- run the per-gene split first")
     targets = list(genes) if a.all else [a.gene]
     # --queue names its own variants and searches every gene, so it needs no --gene/--all
-    if not a.control and not a.queue and (not targets or targets == [None]):
+    if not a.control and not a.queue and not a.cbpp and (not targets or targets == [None]):
         sys.exit("give --gene GENE or --all")
 
     outdir = os.path.join(ROOT, "images/panels"); os.makedirs(outdir, exist_ok=True)
@@ -442,6 +451,85 @@ def main():
                 f"({100*overlap/len(N):.0f}% overlap)")
         log("")
         log("wrote data/panels_control.json")
+        return
+
+    if a.cbpp:
+        # The stratified screen. ~2,000 calls at ~3 s is close to two hours, so this is RESUMABLE:
+        # anything already in data/panels_cbpp.json is skipped, and the manifest is flushed every
+        # 25 results. A long run that loses everything on interruption is a long run nobody finishes.
+        SCREEN = json.load(open(os.path.join(ROOT, "data/cbpp_screen.json")))
+        outp = os.path.join(ROOT, "data/panels_cbpp.json")
+        prev = {"drawn": [], "refused": [], "failed": []}
+        if os.path.exists(outp):
+            try:
+                prev = json.load(open(outp))
+            except Exception:
+                pass
+        done_ids = {r.get("id") for r in prev.get("drawn", [])}
+        done_ids |= {r.get("tag") for r in prev.get("refused", [])}
+        done_ids |= {r.get("tag") for r in prev.get("failed", [])}
+        done, refused, failed = prev.get("drawn", []), prev.get("refused", []), prev.get("failed", [])
+
+        def flush():
+            json.dump({"renderer": RENDERER, "bucket": "cbpp", "design": SCREEN.get("design"),
+                       "seed": SCREEN.get("seed"), "drawn": done, "refused": refused,
+                       "failed": failed}, open(outp, "w"), indent=1)
+
+        rows = SCREEN["rows"]
+        todo = [r for r in rows if f"{r['gene']}_{r.get('rsid') or r['pos']}_{r['ref']}{r['alt']}" not in done_ids]
+        log("")
+        log(f"=== cb++ screen: {len(rows)} in the set, {len(rows) - len(todo)} already done, {len(todo)} to run ===")
+        for _a in ("abundance", "hint", "null"):
+            log(f"    arm {_a:<10} {sum(1 for r in rows if r['arm'] == _a)} total, "
+                f"{sum(1 for r in todo if r['arm'] == _a)} remaining")
+
+        # Resolve every screen row through buckets_for ONCE PER GENE, into a position-keyed index.
+        # Calling buckets_for inside the loop re-scanned all 596,032 variants for each of 2,000 rows
+        # -- 1.2 billion iterations to look up 2,000 things that a dict answers instantly.
+        log("    building the intronic index...")
+        INDEX = {}
+        for _gene in sorted({r["gene"] for r in todo}):
+            _b, _ex, _g = buckets_for(_gene, genes, variants)
+            for _v in (_b["canonical"] + _b["spliceregion"] + _b["deep"]):
+                INDEX[(_gene, _v["pos"], _v["ref"], _v["alt"])] = _v
+        log(f"    indexed {len(INDEX):,} intronic substitutions across {len({k[0] for k in INDEX})} genes")
+
+        t_start = time.time()
+        for n, r in enumerate(todo, 1):
+            gene = r["gene"]
+            g = genes[gene]
+            match = [INDEX[(gene, r["pos"], r["ref"], r["alt"])]] if (gene, r["pos"], r["ref"], r["alt"]) in INDEX else []
+            tag = f"{gene}_{r.get('rsid') or r['pos']}_{r['ref']}{r['alt']}"
+            if not match:
+                refused.append({"tag": tag, "arm": r["arm"], "reason": "not resolvable in the intronic buckets"})
+                continue
+            v = match[0]
+            ok, why = preflight(v, g, gene, seq_cache)
+            if not ok:
+                log(f"  REFUSED {tag}: {why}")
+                refused.append({"tag": tag, "arm": r["arm"], "reason": why}); continue
+            if a.dry:
+                log(f"  would run {tag}  arm {r['arm']}  AF {r['af']:.2e}  {v['_dist']} bp"); continue
+            try:
+                rec = draw(v, g, gene, model, dna_client, genome, outdir, savefig=not a.nofig)
+                # carry the screen's own fields through, so the analysis never has to re-join
+                rec.update({"arm": r["arm"], "af": r["af"], "phylop": r.get("phylop"),
+                            "cadd": r.get("cadd"), "spliceai_gnomad": r.get("spliceai"),
+                            "gene_weight": r.get("gene_weight"), "hint": r.get("hint")})
+                done.append(rec)
+            except Exception as e:
+                log(f"  FAILED   {tag}: {type(e).__name__}: {e}")
+                failed.append({"tag": tag, "arm": r["arm"], "error": f"{type(e).__name__}: {e}"})
+            if n % 25 == 0:
+                flush()
+                el = time.time() - t_start
+                log(f"  [{n}/{len(todo)}]  {len(done)} scored  {el/60:.1f} min elapsed  "
+                    f"~{(el/n)*(len(todo)-n)/60:.0f} min left")
+        if not a.dry:
+            flush()
+            log("")
+            log(f"cb++ screen: {len(done)} scored, {len(refused)} refused, {len(failed)} failed")
+            log("wrote data/panels_cbpp.json")
         return
 
     if a.queue:

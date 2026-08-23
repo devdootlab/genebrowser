@@ -939,12 +939,19 @@ function drawCbpp(){
   }
   var A = CBPP.arm_counts || {}, H = CBPP.arm_hits || {};
   var rate = function(a){ return A[a] ? (100 * (H[a] || 0) / A[a]).toFixed(1) + '%' : '—'; };
-  var h = '<h2>cb++ — ' + CBPP.rows.length.toLocaleString() + ' variants flagged by AlphaGenome</h2>';
+  var h = '<h2>cb++ — ' + CBPP.rows.length.toLocaleString() + ' candidates from a ' +
+          CBPP.screened.toLocaleString() + '-variant screen</h2>';
   h += '<p class="cbnote"><b>What makes a variant cb++:</b> it is in a coagulation gene; it was ' +
        'called in gnomAD <i>genomes</i> rather than exome off-target; it is not sitting in a ' +
        'homopolymer or tandem repeat; it is <b>at least 100 bp from any splice boundary</b>, so it ' +
-       'is not a donor/acceptor hit whose mechanism we already understand — and a machine-learning ' +
-       'model predicts a larger effect on splicing than any of 30 frequency-matched controls showed.</p>';
+       'is not a donor/acceptor hit whose mechanism we already understand — and <b>two splice ' +
+       'models independently score it above a matched control</b>. Ranked by allele frequency, so ' +
+       'the top of the list is the part you could actually find carriers for.</p>';
+  h += '<p class="cbnote"><b>The honest caveat, up front:</b> SpliceAI and AlphaGenome are not ' +
+       'independent instruments. Both learn splicing from genomic sequence and they agree at ' +
+       'r = 0.72 across this repo\'s panels, so their concordance is weaker evidence than two ' +
+       'different assays agreeing. This is the best <i>in silico</i> evidence available here, and ' +
+       'it is still in silico.</p>';
   h += '<div class="cbstat"><span>threshold <b>' + CBPP.threshold.toFixed(4) + '</b></span>' +
        '<span>screened <b>' + CBPP.screened.toLocaleString() + '</b></span>' +
        '<span>for scale, a canonical splice-killer scores <b>' + CBPP.positive_min.toFixed(2) + '</b> or more</span></div>';
@@ -961,12 +968,42 @@ function drawCbpp(){
        'its rate matches the other two, the model is flagging a fixed share of whatever it is given ' +
        'and nothing above it means what it appears to mean.</p>';
 
+  // The split that decides whether any of this is new. The hint arm admits variants on any of three
+  // criteria and one of them is SpliceAI, which is also what the readout measures. Reported whole
+  // the arm looked spectacular (7.4% vs 1.0%, p = 2e-9); split, all of it was SpliceAI.
+  var S = CBPP.spliceai_split;
+  if (S) {
+    h += '<h2 style="margin-top:16px">Is any of it independent of SpliceAI?</h2>';
+    h += '<p class="cbnote">The hint arm lets a variant in on <i>any</i> of phyloP, CADD or SpliceAI — ' +
+         'and SpliceAI predicts the same thing the readout measures. Reported whole, that arm looked ' +
+         'decisive. Split by which hint actually let each variant in:</p>';
+    h += '<table><thead><tr><th>entered because</th><th class="n">n</th><th class="n">flagged</th>' +
+         '<th class="n">rate</th></tr></thead><tbody>' +
+         '<tr><td>SpliceAI &ge; 0.05</td><td class="n">' + S.entered + '</td><td class="n">' + S.entered_hits +
+           '</td><td class="n"><b>' + (100*S.entered_hits/S.entered).toFixed(1) + '%</b></td></tr>' +
+         '<tr><td>phyloP or CADD only, no SpliceAI</td><td class="n">' + S.free + '</td><td class="n">' + S.free_hits +
+           '</td><td class="n">' + (100*S.free_hits/S.free).toFixed(1) + '%</td></tr>' +
+         '<tr><td>null arm</td><td class="n">' + S.null_n + '</td><td class="n">' + S.null_hits +
+           '</td><td class="n">' + (100*S.null_hits/S.null_n).toFixed(1) + '%</td></tr>' +
+         '</tbody></table>';
+    h += '<p class="cbnote"><b>' + (CBPP.independent_signal
+      ? 'Conservation and CADD do predict a flag independently of SpliceAI'
+      : 'Conservation and CADD do not predict a flag once SpliceAI is removed') +
+      '</b> — SpliceAI-free hint vs null, Fisher one-sided p = ' + S.free_vs_null_p.toFixed(3) + '. ' +
+      (CBPP.independent_signal ? '' :
+       'So on this data the model is largely restating SpliceAI, and the list below is <b>confirmation ' +
+       'by a second model, not discovery by one</b>. Those are different claims and only the first is ' +
+       'supported here.') + '</p>';
+    h += '<p class="cbnote">Threshold note: ' + CBPP.threshold_note + '</p>';
+  }
+
   if (!CBPP.rows.length) {
     h += '<p class="cbnote"><b>Nothing cleared the threshold.</b> That is a result rather than a ' +
          'gap: it says these genes carry no deep-intronic variant that this model expects to ' +
          'disturb splicing more than a matched control variant does.</p>';
     w.innerHTML = h; return;
   }
+  h += '<h2 style="margin-top:16px">cb++ candidates — both models agree, ranked by how common they are</h2>';
 
   h += '<table><thead><tr><th>gene</th><th>variant</th><th class="n">AF</th><th class="n">bp to splice site</th>' +
        '<th class="n">phyloP</th><th class="n">SpliceAI</th><th class="n">AlphaGenome</th><th>arm</th><th></th>' +
@@ -982,6 +1019,16 @@ function drawCbpp(){
       '<td class="jump" data-cb="' + i + '">open ›</td></tr>';
   });
   h += '</tbody></table>';
+  // The near-misses have to be shown, and shown as near-misses. Listing them silently alongside the
+  // concordant set would imply they mean the same thing; omitting them entirely would hide that the
+  // model flags a steady ~1% of anything you give it.
+  if ((CBPP.unconfirmed || []).length)
+    h += '<p class="cbnote"><b>' + CBPP.unconfirmed.length + ' further variants</b> cleared the ' +
+         'AlphaGenome threshold with no SpliceAI call. They are not listed as candidates because ' +
+         'that count matches the null arm\'s own rate of ' +
+         (100 * CBPP.spliceai_split.null_hits / CBPP.spliceai_split.null_n).toFixed(1) +
+         '% — they are indistinguishable from background, and a background hit presented as a ' +
+         'finding is the exact thing this screen was built to prevent.</p>';
   w.innerHTML = h;
 
   // Each row jumps to that variant IN ITS OWN GENE: switch gene, zoom to it, select it, open its

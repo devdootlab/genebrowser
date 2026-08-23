@@ -252,6 +252,32 @@ if (has('data/cbpp.json')) {
   }
 }
 
+/* ---- manifest merge integrity ------------------------------------------------------------------ */
+// This block has now silently destroyed results twice. First a plain overwrite: a 16-gene loop drew
+// 16 figures and recorded 1. Then, after --queue was given its own file, the write side stamped
+// bucket "queue" while the read-side guard still compared a.bucket -- which is "canonical", the
+// argparse default, because --queue never sets it. The guard never matched, so a 4-variant re-run
+// replaced 38 rows with 1. Both times: no error, correct-looking output, data gone.
+{
+  const py = fs.readFileSync(path.join(R, 'scripts/make_panels.py'), 'utf8');
+  // Plain string matching, not regex: these patterns are full of ( ) . " which a regex reads as
+  // syntax, and a pattern that silently means something else is how this check passed while the
+  // code was wrong.
+  ok(py.includes('old.get("bucket") == _name'),
+     'merge: the read guard compares the EFFECTIVE bucket name, not a.bucket');
+  ok(py.includes('"bucket": _name'), 'merge: the write side stamps the same effective name');
+  ok(!py.includes('old.get("bucket") == a.bucket'),
+     'merge: no comparison against a.bucket, which --queue and --peakpick do not set');
+  // every manifest must agree with its own filename, or the guard silently refuses to merge
+  for (const f of fs.readdirSync(path.join(R, 'data')).filter(f => /^panels.*.json$/.test(f))) {
+    const m = J('data/' + f);
+    if (!m.bucket) continue;
+    const want = f.replace(/^panels_?/, '').replace(/.json$/, '') || 'canonical';
+    ok(m.bucket === want || (f === 'panels.json'),
+       `merge: ${f} declares bucket "${m.bucket}", filename implies "${want}"`);
+  }
+}
+
 /* ---- favicon ----------------------------------------------------------------------------------- */
 // A favicon that 404s looks identical to no favicon at all: a blank page glyph, which is exactly
 // what makes a tab unfindable. Both files must exist and both must be referenced.

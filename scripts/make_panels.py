@@ -33,8 +33,23 @@ import numpy as np
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RENDERER = 2
+RENDERER = 3      # 2 -> 3: the figure now plots the splice track it scores, and marks real exons
 COMP = {"A": "T", "C": "G", "G": "C", "T": "A"}
+
+# The scale every panel is read against, taken from the known-answer run rather than asserted here.
+# A figure that shows a number without showing what counts as big is a figure that cannot be read.
+def _control_scale():
+    p = os.path.join(ROOT, "data/panels_control.json")
+    try:
+        d = json.load(open(p))["drawn"]
+        neg = [r["splice_maxabsdiff"] for r in d if r.get("label") == "negative"]
+        pos = [r["splice_maxabsdiff"] for r in d if r.get("label") == "positive"]
+        if neg and pos:
+            return max(neg), min(pos)
+    except Exception:
+        pass
+    return 0.1313, 0.9338          # the values that run produced, if the file is missing
+NEG_MAX, POS_MIN = _control_scale()
 
 
 def log(m):
@@ -200,9 +215,21 @@ def preflight(v, g, gene, seq_cache):
     if not (g["start"] <= v["pos"] <= g["end"]):
         return False, f"pos {v['pos']:,} outside {gene} {g['start']:,}-{g['end']:,}"
     if seq_cache.get(gene) is None:
+        # The gene's whole span already ships as data/seq_<GENE>.txt. Fetching it from Ensembl
+        # anyway made every preflight depend on a live network call for data sitting on disk, and
+        # a transient failure is indistinguishable from a bad variant: it comes back as
+        # "could not fetch reference sequence" and REFUSES the variant. That cost 4 of 42 cb++
+        # figures in one run -- 3 genes whose fetch happened to fail, reported as refusals.
+        # Length is checked before the file is trusted; a short file would shift every base.
+        _local = os.path.join(ROOT, f"data/seq_{gene}.txt")
+        if os.path.exists(_local):
+            _s = open(_local, encoding="utf-8").read().strip().upper()
+            if len(_s) == g["end"] - g["start"] + 1:
+                seq_cache[gene] = _s
+    if seq_cache.get(gene) is None:
         r = ensembl(f"/sequence/region/human/{gchrom}:{g['start']}..{g['end']}?content-type=application/json")
         if not r or "seq" not in r:
-            return False, "could not fetch reference sequence"
+            return False, "could not fetch reference sequence (no local data/seq_%s.txt either)" % gene
         s = r["seq"].upper()
         if len(s) != g["end"] - g["start"] + 1:
             return False, f"reference sequence is {len(s)} bp, expected {g['end']-g['start']+1}"
@@ -277,48 +304,97 @@ def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
     if not np.isfinite(delta):
         raise ValueError(f"non-finite delta (ref mean {rm}, alt mean {am})")
 
+    # WHAT THIS FIGURE SHOWS, AND WHAT IT USED TO SHOW
+    # ------------------------------------------------
+    # The old layout plotted RNA_SEQ in three of its four panels and never drew the SPLICE_SITES
+    # track at all -- while every claim made about these variants rests on splice_maxabsdiff, which
+    # is computed FROM the splice track. The figure did not contain its own evidence.
+    #
+    # Its title also led with `splice_log2fc` and `delta`. Measured against 30 canonical positives
+    # and 30 AF-matched negatives, those overlap 100% and 80% respectively; splice_maxabsdiff
+    # overlaps 0%. The two weakest numbers were the headline and the decisive one was absent.
+    #
+    # And the RNA panels carried no exon markers, so a predicted coverage spike sitting in the
+    # middle of an intron reads as an exon edge. That is exactly how someone comes away thinking a
+    # variant is next to an exon when it is 2 kb away.
     x = np.linspace(iv.start, iv.end, R.shape[0])
+    xs = np.linspace(iv.start, iv.end, SPR.shape[0])
+    ex = sorted([[min(e), max(e)] if isinstance(e, list) else [e["start"], e["end"]] for e in g["exons"]])
+
+    def mark_exons(ax, lo, hi, label=True):
+        """Shade real exons wherever an RNA or splice panel is drawn, so a predicted feature can
+        never be mistaken for one."""
+        drew = False
+        for a, b in ex:
+            if b < lo or a > hi:
+                continue
+            ax.axvspan(max(a, lo), min(b, hi), color="#1e293b", alpha=0.13, zorder=0)
+            drew = True
+        if label:
+            ax.text(0.012, 0.94, "shaded = real exon" if drew else "no exon in view",
+                    transform=ax.transAxes, fontsize=7.5, color="#334155", va="top")
+
     fig, axes = plt.subplots(2, 2, figsize=(15, 8.5))
-    fig.suptitle(f"AlphaGenome · {gene} {v.get('rsid') or ''} · {chrom}:{pos:,} {ref}>{alt} · "
-                 f"splice {splice_delta:+.3f} log2FC | RNA {delta:+.4f} log2FC",
+    fig.suptitle(f"AlphaGenome · {gene} {v.get('rsid') or ''} · {chrom}:{pos:,} {ref}>{alt}\n"
+                 f"splice-site max|Δ| {splice_absdiff:.4f}"
+                 f"   (matched controls reach {NEG_MAX:.4f}; a canonical splice-killer reaches {POS_MIN:.2f})",
                  fontsize=12, fontweight="bold")
 
-    # 1. gene model
+    # 1. gene model — where the variant sits in the gene
     ax = axes[0][0]
-    ex = sorted([[min(e), max(e)] if isinstance(e, list) else [e["start"], e["end"]] for e in g["exons"]])
     ax.plot([g["start"], g["end"]], [0, 0], color="#334155", lw=1.4)
     for a, b in ex:
         ax.add_patch(plt.Rectangle((a, -0.3), max(b - a, 60), 0.6, color="#1e293b"))
     ax.axvline(pos, color="#d97706", lw=1.6)
     ax.set_ylim(-1.2, 1.2); ax.set_yticks([]); ax.set_xlim(g["start"], g["end"])
     ax.set_title(f"{len(ex)} exons · strand {'+' if g['strand']==1 else '-'} · "
-                 f"intron {v['_intron']}/{v['_nintrons']} · {v['_dist']} bp from a splice site", fontsize=9)
+                 f"intron {v['_intron']}/{v['_nintrons']} · {v['_dist']:,} bp from the nearest splice site",
+                 fontsize=9)
 
-    # 2. REF vs ALT, one track
+    # 2. THE EVIDENCE: the splice-site track, ±1 kb. This is what the score is computed from.
     ax = axes[0][1]
-    ax.plot(x, R, color="#2563eb", lw=1.0, label="REF")
-    ax.plot(x, A, color="#dc2626", lw=1.0, ls="--", label="ALT")
-    ax.axvline(pos, color="#d97706", lw=1.0, ls=":")
-    ax.legend(fontsize=8); ax.set_title(f"most-affected track {ti} of {RV.shape[1]}  {track_name}", fontsize=9)
+    ms = (xs >= pos - 1000) & (xs <= pos + 1000)
+    ax.plot(xs[ms], SPR[ms], color="#2563eb", lw=1.2, label="REF")
+    ax.plot(xs[ms], SPA[ms], color="#dc2626", lw=1.2, ls="--", label="ALT")
+    ax.axvline(pos, color="#d97706", lw=1.2, ls=":")
+    ax.axvspan(pos - 128, pos + 128, color="#d97706", alpha=0.10, zorder=0)
+    mark_exons(ax, pos - 1000, pos + 1000)
+    ax.legend(fontsize=8)
+    ax.set_title(f"SPLICE-SITE track {sti} of {SR.shape[1]} — the score comes from HERE\n"
+                 f"±1 kb; the tinted band is the ±128 bp the max is taken over", fontsize=9)
 
-    # 3. same, zoomed
+    # 3. RNA-seq, 4 kb, WITH exons marked
     ax = axes[1][0]
     m = (x >= pos - 2000) & (x <= pos + 2000)
     ax.plot(x[m], R[m], color="#2563eb", lw=1.2, label="REF")
     ax.plot(x[m], A[m], color="#dc2626", lw=1.2, ls="--", label="ALT")
     ax.axvline(pos, color="#d97706", lw=1.2, ls=":")
-    ax.legend(fontsize=8); ax.set_title("4 kb around the variant", fontsize=9)
+    mark_exons(ax, pos - 2000, pos + 2000)
+    ax.legend(fontsize=8)
+    ax.set_title(f"RNA-seq, 4 kb around the variant · track {ti}  {track_name}\n"
+                 f"a peak here is PREDICTED COVERAGE, not an exon", fontsize=9)
 
-    # 4. the number, with its own scale stated
+    # 4. where this variant falls against the controls that define the scale
     ax = axes[1][1]
-    ax.bar(["REF", "ALT"], [rm, am], color=["#2563eb", "#dc2626"])
-    ax.set_title(f"mean coverage in track {ti}\n{delta:+.4f} log2 FC", fontsize=9)
+    ax.axvspan(0, NEG_MAX, color="#94a3b8", alpha=0.30)
+    ax.axvspan(POS_MIN, 1.0, color="#dc2626", alpha=0.20)
+    ax.axvline(splice_absdiff, color="#d97706", lw=3)
+    ax.text(NEG_MAX / 2, 0.72, "30 matched\ndeep-intronic\ncontrols", ha="center", fontsize=7.5, color="#334155")
+    ax.text((POS_MIN + 1) / 2, 0.72, "30 canonical\nsplice-killers", ha="center", fontsize=7.5, color="#7f1d1d")
+    ax.annotate(f"this variant\n{splice_absdiff:.4f}", xy=(splice_absdiff, 0.35),
+                xytext=(splice_absdiff, 0.12), ha="center", fontsize=8.5, color="#b45309",
+                arrowprops=dict(arrowstyle="-|>", color="#b45309", lw=1.2))
+    ax.set_xlim(0, 1.02); ax.set_ylim(0, 1); ax.set_yticks([])
+    ax.set_xlabel("splice-site max|Δ|", fontsize=8.5)
+    ax.set_title("the only metric with 0% control overlap\n"
+                 "(splice log2FC overlaps 100%, RNA log2FC 80% — neither is shown)", fontsize=9)
 
     fig.text(0.5, 0.005,
              "AlphaGenome PREDICTION, not a measurement. ONE track of "
-             f"{RV.shape[1]}, the one this variant moves most. Averaged over all tracks the change is far smaller.",
+             f"{RV.shape[1]}, the one this variant moves most. Averaged over all tracks the change is far smaller. "
+             f"RNA mean over the ±128 bp window: REF {rm:.3f} → ALT {am:.3f}.",
              ha="center", fontsize=7.5, color="#475569")
-    fig.tight_layout(rect=[0, 0.02, 1, 0.96])
+    fig.tight_layout(rect=[0, 0.02, 1, 0.93])
 
     stem = f"{gene}_{v.get('rsid') or str(pos)}_{ref}{alt}"
     png = os.path.join(outdir, stem + "_rich.png")
@@ -659,18 +735,32 @@ def main():
         # plain overwrite meant a 16-gene loop drew 16 figures and recorded 1: the PNGs were on disk
         # with nothing in the manifest pointing at them, which is a silent loss, not an error.
         # Keyed by id so a re-run of one gene replaces that gene's rows and leaves the rest.
+        # The guard compares against _name, the EFFECTIVE bucket, not a.bucket. When --queue was
+        # given its own file, the write side started stamping "queue" while this read side still
+        # compared a.bucket -- which is "canonical", the argparse default, because --queue does not
+        # set it. The guard therefore never matched, prev stayed empty, and a 4-variant re-run
+        # silently replaced 38 existing rows with 1. That is the same overwrite this merge was
+        # written to prevent, reintroduced by the fix for a different bug in the same block.
         prev = {"drawn": [], "refused": [], "failed": []}
         if os.path.exists(p):
             try:
                 old = json.load(open(p))
-                if old.get("renderer") == RENDERER and old.get("bucket") == a.bucket:
+                if old.get("bucket") == _name and old.get("renderer") == RENDERER:
                     prev = old
+                elif old.get("bucket") == _name:
+                    # a renderer bump is a real reason to discard, but say so rather than drop
+                    # dozens of rows without a word
+                    log(f"  {os.path.basename(p)} was written by renderer {old.get('renderer')}, "
+                        f"this is {RENDERER} -- discarding {len(old.get('drawn', []))} stale rows")
+                else:
+                    log(f"  {os.path.basename(p)} claims bucket {old.get('bucket')!r}, expected "
+                        f"{_name!r} -- refusing to merge into it")
             except Exception as e:
                 log(f"  existing {os.path.basename(p)} unreadable ({e}) -- starting fresh")
         def _merge(old_rows, new_rows, key):
             fresh = {r.get(key) for r in new_rows}
             return [r for r in old_rows if r.get(key) not in fresh] + new_rows
-        out = {"renderer": RENDERER, "bucket": ("queue" if a.queue else a.bucket),
+        out = {"renderer": RENDERER, "bucket": _name,
                "drawn":   _merge(prev.get("drawn", []), done, "id"),
                "refused": _merge(prev.get("refused", []), refused, "tag"),
                "failed":  _merge(prev.get("failed", []), failed, "tag")}

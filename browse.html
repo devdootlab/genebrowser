@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gene browser — table first</title>
+<title>Non-coding variants in the coagulation cascade</title>
 <!-- Avocado. The pit is deliberately a third of the icon: at 16x16 in an inactive tab it is the
      only part still legible, and finding the tab is the whole job. favicon.png is generated from
      the same geometry by scripts/make_favicon.mjs, for browsers that will not take an SVG icon. -->
@@ -14,7 +14,12 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif}
 .wrap{max-width:1400px;margin:0 auto;padding:18px 18px 70px}
 h1{font-size:19px;margin:0 0 2px;font-weight:700}
-.sub{color:var(--faint);font-size:13px;margin:0 0 14px}
+.sub{color:var(--faint);font-size:13px;margin:0 0 12px}
+.intro{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0 26px;
+  border-left:3px solid var(--accent);background:var(--panel);padding:11px 15px;margin:0 0 16px;
+  border-radius:0 7px 7px 0}
+.intro p{margin:0 0 6px;font-size:12.5px;line-height:1.6;color:var(--ink)}
+.intro b{color:var(--accent)}
 .genes{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
 .g{background:var(--panel);border:1px solid var(--rule);color:var(--ink);border-radius:6px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
 .g[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#ffffff}
@@ -76,8 +81,29 @@ a{color:var(--accent)}
 .qq{font-size:12px;color:var(--faint)}
 </style></head><body><div class="wrap">
 
-<h1>Gene browser</h1>
-<p class="sub">Table first. The strip is for orientation, not for reading values off.</p>
+<!-- The header used to read "Gene browser / Table first. The strip is for orientation, not for
+     reading values off." Both sentences are true and both are notes-to-self: they tell someone who
+     already knows what this is how to hold it, and tell someone who does not know absolutely
+     nothing. What it is, what it is for, and what to click now come first. -->
+<h1>Non-coding variants in the coagulation cascade</h1>
+<p class="sub" id="lede"></p>
+
+<div class="intro">
+  <p><b>What this is for.</b> Finding variants in the <i>introns</i> — the parts of a gene that are
+  cut out before a protein is made — that might still disrupt how the gene is spliced together, and
+  that nobody has studied. Ask a language model for interesting variants and it can only hand back
+  ones somebody has already written about. gnomAD hands back everything, including the overwhelming
+  majority nobody has ever looked at.</p>
+
+  <p><b>How to read the page.</b> Pick a gene from the buttons below. The <b>table</b> is the main
+  view — every column sorts. The <b>strip</b> shows where variation piles up along the gene; click a
+  bar to filter the table to that stretch. The <b>zoom</b> underneath draws variants one by one
+  against the reference sequence, and left-clicking one opens its full card.</p>
+
+  <p><b>Where the numbers come from.</b> Frequencies and the SpliceAI, Pangolin, CADD and phyloP
+  scores are all gnomAD's. The AlphaGenome column is a prediction this project ran, and it is a
+  <i>prediction</i> — the panel under each variant says what it was measured against.</p>
+</div>
 
 <div class="genes" id="genes"></div>
 <div id="cbwrap" hidden></div>
@@ -297,6 +323,21 @@ Promise.all([
   });
   SPIKES = a[2] || {};
   GENE = Object.keys(GENES)[0];
+  // Counted from the data, never typed. A hand-written "37 genes, 614,941 variants" in the header
+  // is wrong the moment a gene is added, and a stale number in the first sentence undermines every
+  // number below it.
+  (function(){
+    var ks = Object.keys(GENES), tot = 0, nc = 0, minus = 0;
+    ks.forEach(function(k){ tot += GENES[k].n_variants || 0; nc += GENES[k].n_noncoding || 0;
+      if (GENES[k].strand === -1) minus++; });
+    $('#lede').innerHTML =
+      'Every variant <a href="https://gnomad.broadinstitute.org" target="_blank" rel="noopener">gnomAD</a> ' +
+      'has recorded inside <b>' + ks.length + ' genes</b> — the clotting factors and natural ' +
+      'anticoagulants, plus two immune genes carried over from an earlier project as an ' +
+      'out-of-domain comparison. <b>' + tot.toLocaleString() + '</b> variants, <b>' +
+      nc.toLocaleString() + '</b> of them outside the coding sequence, with splice predictions attached. ' +
+      minus + ' of the genes are transcribed backwards, and the sequence view accounts for that.';
+  })();
   drawGenes();
   loadGene(GENE, render);
 }).catch(function(e){ $('#tb').innerHTML = '<tr><td colspan="8" class="empty">Could not load data: ' + e + '</td></tr>'; });

@@ -997,7 +997,13 @@ function detail(r){
       // clone. Prefer the committed path when the variant is a cb++ candidate.
       var cbrow = CBPP && CBPP.rows && CBPP.rows.filter(function(x){
         return x.gene === GENE && x.pos === r.pos && x.ref === r.ref && x.alt === r.alt; })[0];
+      // Figures are redrawn under the SAME filename when the renderer changes, so a browser that
+      // cached the previous generation keeps serving it — the page would show a corrected figure to
+      // a first-time visitor and a stale one to everybody who had looked before. Tagging the src
+      // with the renderer version busts that cache exactly when the drawing actually changed, and
+      // never otherwise.
       var src = (cbrow && cbrow.cbpp_img) || p.rich_img;
+      if (src && p.renderer) src += '?r=' + p.renderer;
       if (!src) return cap + '<p class="slab">Scored, not drawn — this variant came from a ' +
         '<code>--nofig</code> screen. Draw it with <code>make_panels.py --queue "' +
         (r.rsid || r.pos) + ':' + r.ref + r.alt + '"</code></p>';

@@ -33,7 +33,9 @@ import numpy as np
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RENDERER = 3      # 2 -> 3: the figure now plots the splice track it scores, and marks real exons
+RENDERER = 4      # 2 -> 3: plots the splice track it scores, marks real exons
+                  # 3 -> 4: gene-model locator strip over the RNA panel, so "where am I in
+                  #         the gene" is answerable without leaving that panel
 COMP = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
 # The scale every panel is read against, taken from the known-answer run rather than asserted here.
@@ -363,7 +365,14 @@ def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
     ax.set_title(f"SPLICE-SITE track {sti} of {SR.shape[1]} — the score comes from HERE\n"
                  f"±1 kb; the tinted band is the ±128 bp the max is taken over", fontsize=9)
 
-    # 3. RNA-seq, 4 kb, WITH exons marked
+    # 3. RNA-seq, 4 kb, with exons marked AND a gene-model strip above it.
+    #
+    # "no exon in view" tells you an exon is not here; it does not tell you WHERE here is. Without
+    # that, a coverage peak 2 kb inside an intron is indistinguishable from an exon edge, and the
+    # honest label does not help because the reader has no frame to put it in. The strip above the
+    # panel carries the whole gene with this 4 kb window marked on it, so the answer to "middle of
+    # an intron, or next to an exon?" is legible without leaving the panel.
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
     ax = axes[1][0]
     m = (x >= pos - 2000) & (x <= pos + 2000)
     ax.plot(x[m], R[m], color="#2563eb", lw=1.2, label="REF")
@@ -371,8 +380,33 @@ def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
     ax.axvline(pos, color="#d97706", lw=1.2, ls=":")
     mark_exons(ax, pos - 2000, pos + 2000)
     ax.legend(fontsize=8)
-    ax.set_title(f"RNA-seq, 4 kb around the variant · track {ti}  {track_name}\n"
-                 f"a peak here is PREDICTED COVERAGE, not an exon", fontsize=9)
+    # loc="left": matplotlib parks the axis offset text ("+1.1316e8") at the RIGHT end, and a
+    # centred label runs straight into it.
+    ax.set_xlabel(f"track {ti} · {track_name} · peaks are PREDICTED COVERAGE, not exons",
+                  fontsize=8, loc="left")
+
+    loc = make_axes_locatable(ax).append_axes("top", size="22%", pad=0.06, sharex=None)
+    span = g["end"] - g["start"]
+    loc.plot([g["start"], g["end"]], [0, 0], color="#334155", lw=1.2)
+    for a_, b_ in ex:
+        loc.add_patch(plt.Rectangle((a_, -0.42), max(b_ - a_, span / 400), 0.84, color="#1e293b"))
+    loc.axvspan(pos - 2000, pos + 2000, color="#d97706", alpha=0.35, zorder=3)
+    loc.axvline(pos, color="#d97706", lw=1.0, zorder=4)
+    loc.set_xlim(g["start"], g["end"]); loc.set_ylim(-1, 1)
+    loc.set_xticks([]); loc.set_yticks([])
+    for s_ in loc.spines.values():
+        s_.set_visible(False)
+    # which way the nearest exon lies, and how far. The number in the corner is the same _dist the
+    # gene-model panel reports, so the two panels cannot disagree.
+    left = [b_ for _a, b_ in ex if b_ <= pos]
+    right = [a_ for a_, _b in ex if a_ >= pos]
+    bits = []
+    if left:
+        bits.append(f"◀ {pos - max(left):,} bp to the exon on the left")
+    if right:
+        bits.append(f"{min(right) - pos:,} bp to the exon on the right ▶")
+    loc.set_title(f"whole gene · black = exons · orange = the 4 kb below"
+                  + ("\n" + "   ".join(bits) if bits else ""), fontsize=7.5, pad=3)
 
     # 4. where this variant falls against the controls that define the scale
     ax = axes[1][1]

@@ -1,5 +1,5 @@
 {
- "renderer": 3,
+ "renderer": 4,
  "bucket": "queue",
  "drawn": [
   {
@@ -21,7 +21,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F2_rs1219113720_GT_rich.png"
   },
   {
@@ -43,7 +43,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F2_rs1218414679_GT_rich.png"
   },
   {
@@ -65,7 +65,7 @@
    "track_index": 463,
    "n_tracks": 667,
    "track": "UBERON:0001114 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F5_rs9332690_TC_rich.png"
   },
   {
@@ -87,7 +87,7 @@
    "track_index": 485,
    "n_tracks": 667,
    "track": "UBERON:0001987 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F5_rs113435059_TC_rich.png"
   },
   {
@@ -109,7 +109,7 @@
    "track_index": 600,
    "n_tracks": 667,
    "track": "UBERON:0001114 gtex Liver polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F5_rs143597977_GT_rich.png"
   },
   {
@@ -131,7 +131,7 @@
    "track_index": 600,
    "n_tracks": 667,
    "track": "UBERON:0001114 gtex Liver polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F5_rs114688524_TC_rich.png"
   },
   {
@@ -153,7 +153,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/FGA_rs2070013_AG_rich.png"
   },
   {
@@ -175,7 +175,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/FGB_rs2227412_AG_rich.png"
   },
   {
@@ -197,7 +197,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/FGB_rs2227395_GA_rich.png"
   },
   {
@@ -219,7 +219,7 @@
    "track_index": 632,
    "n_tracks": 667,
    "track": "UBERON:0002190 gtex Adipose_Subcutaneous polyA plus RNA-se",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/VWF_rs71581033_TC_rich.png"
   },
   {
@@ -241,7 +241,7 @@
    "track_index": 350,
    "n_tracks": 667,
    "track": "CL:0002618 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/VWF_rs61615222_GA_rich.png"
   },
   {
@@ -263,7 +263,7 @@
    "track_index": 350,
    "n_tracks": 667,
    "track": "CL:0002618 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/VWF_rs139422983_CA_rich.png"
   },
   {
@@ -285,7 +285,7 @@
    "track_index": 363,
    "n_tracks": 667,
    "track": "CL:2000010 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/VWF_rs117425356_CT_rich.png"
   },
   {
@@ -307,7 +307,7 @@
    "track_index": 591,
    "n_tracks": 667,
    "track": "UBERON:0000473 gtex Testis polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F8_rs182074979_TC_rich.png"
   },
   {
@@ -329,7 +329,7 @@
    "track_index": 568,
    "n_tracks": 667,
    "track": "EFO:0001187 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F7_rs528907277_CA_rich.png"
   },
   {
@@ -351,7 +351,7 @@
    "track_index": 568,
    "n_tracks": 667,
    "track": "EFO:0001187 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F10_rs753057_AG_rich.png"
   },
   {
@@ -373,7 +373,7 @@
    "track_index": 109,
    "n_tracks": 667,
    "track": "EFO:0001187 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F10_rs1340105925_GT_rich.png"
   },
   {
@@ -395,7 +395,7 @@
    "track_index": 109,
    "n_tracks": 667,
    "track": "EFO:0001187 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F10_rs3213004_GA_rich.png"
   },
   {
@@ -417,7 +417,7 @@
    "track_index": 568,
    "n_tracks": 667,
    "track": "EFO:0001187 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F10_rs543002525_GA_rich.png"
   },
   {
@@ -439,7 +439,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F11_rs1484440012_GT_rich.png"
   },
   {
@@ -461,7 +461,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F11_rs1432339883_GT_rich.png"
   },
   {
@@ -483,7 +483,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F12_rs538797824_CT_rich.png"
   },
   {
@@ -505,7 +505,7 @@
    "track_index": 291,
    "n_tracks": 667,
    "track": "CL:0000312 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F3_rs3917603_AT_rich.png"
   },
   {
@@ -527,7 +527,7 @@
    "track_index": 319,
    "n_tracks": 667,
    "track": "CL:0002327 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F3_rs3917608_TG_rich.png"
   },
   {
@@ -549,7 +549,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/F13B_rs12134960_GC_rich.png"
   },
   {
@@ -571,7 +571,7 @@
    "track_index": 233,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/PROC_rs140124870_GA_rich.png"
   },
   {
@@ -593,7 +593,7 @@
    "track_index": 78,
    "n_tracks": 667,
    "track": "CL:0002618 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/PROCR_rs796424434_GT_rich.png"
   },
   {
@@ -615,7 +615,7 @@
    "track_index": 600,
    "n_tracks": 667,
    "track": "UBERON:0001114 gtex Liver polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/PROZ_rs3024728_AG_rich.png"
   },
   {
@@ -637,7 +637,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/PROZ_rs3024745_AG_rich.png"
   },
   {
@@ -659,7 +659,7 @@
    "track_index": 600,
    "n_tracks": 667,
    "track": "UBERON:0001114 gtex Liver polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/KLKB1_rs189810032_GT_rich.png"
   },
   {
@@ -681,7 +681,7 @@
    "track_index": 600,
    "n_tracks": 667,
    "track": "UBERON:0001114 gtex Liver polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/KLKB1_rs4253382_AT_rich.png"
   },
   {
@@ -703,7 +703,7 @@
    "track_index": 193,
    "n_tracks": 667,
    "track": "UBERON:0001115 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/KLKB1_rs62348795_AG_rich.png"
   },
   {
@@ -725,7 +725,7 @@
    "track_index": 233,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/KNG1_rs543070429_AG_rich.png"
   },
   {
@@ -747,7 +747,7 @@
    "track_index": 299,
    "n_tracks": 667,
    "track": "CL:0000624 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/GGCX_rs546537974_CA_rich.png"
   },
   {
@@ -769,7 +769,7 @@
    "track_index": 381,
    "n_tracks": 667,
    "track": "EFO:0001187 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/GGCX_rs75566086_TC_rich.png"
   },
   {
@@ -791,7 +791,7 @@
    "track_index": 394,
    "n_tracks": 667,
    "track": "EFO:0002103 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/MCFD2_rs72886648_CA_rich.png"
   },
   {
@@ -813,7 +813,7 @@
    "track_index": 51,
    "n_tracks": 667,
    "track": "CL:0002351 total RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/ADAMTS13_rs36220235_GA_rich.png"
   },
   {
@@ -835,7 +835,7 @@
    "track_index": 109,
    "n_tracks": 667,
    "track": "EFO:0001187 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/ADAMTS13_rs36218897_CG_rich.png"
   },
   {
@@ -857,7 +857,7 @@
    "track_index": 591,
    "n_tracks": 667,
    "track": "UBERON:0000473 gtex Testis polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/ADAMTS13_rs1230508571_GT_rich.png"
   },
   {
@@ -879,7 +879,7 @@
    "track_index": 630,
    "n_tracks": 667,
    "track": "UBERON:0002167 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/ADAMTS13_rs991317028_GT_rich.png"
   },
   {
@@ -901,7 +901,7 @@
    "track_index": 627,
    "n_tracks": 667,
    "track": "UBERON:0002107 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/PLG_rs1178236103_GT_rich.png"
   },
   {
@@ -923,7 +923,7 @@
    "track_index": 390,
    "n_tracks": 667,
    "track": "EFO:0002067 polyA plus RNA-seq",
-   "renderer": 3,
+   "renderer": 4,
    "rich_img": "images/panels/PROS1_rs144144985_CT_rich.png"
   }
  ],

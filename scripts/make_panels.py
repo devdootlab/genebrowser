@@ -33,9 +33,13 @@ import numpy as np
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RENDERER = 4      # 2 -> 3: plots the splice track it scores, marks real exons
+RENDERER = 5      # 2 -> 3: plots the splice track it scores, marks real exons
                   # 3 -> 4: gene-model locator strip over the RNA panel, so "where am I in
                   #         the gene" is answerable without leaving that panel
+                  # 4 -> 5: that strip was the WHOLE GENE stacked above a 4 kb plot, which is
+                  #         the browser convention for "these share coordinates" and they did
+                  #         not. Strip now shares the axis; the gene-scale view moved to the
+                  #         gene-scale panel, with the window shaded on it.
 COMP = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
 # The scale every panel is read against, taken from the known-answer run rather than asserted here.
@@ -344,14 +348,19 @@ def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
 
     # 1. gene model — where the variant sits in the gene
     ax = axes[0][0]
+    # This panel is ALREADY at gene scale, so it is where the "where am I in the gene" question
+    # belongs. The shaded band is exactly the window the bottom-left panel draws, which is the only
+    # honest way to relate two different scales: put the small one INSIDE the big one, rather than
+    # stacking them and hoping the reader notices the axes disagree.
+    ax.axvspan(pos - 2000, pos + 2000, color="#d97706", alpha=0.22, zorder=0)
     ax.plot([g["start"], g["end"]], [0, 0], color="#334155", lw=1.4)
     for a, b in ex:
         ax.add_patch(plt.Rectangle((a, -0.3), max(b - a, 60), 0.6, color="#1e293b"))
     ax.axvline(pos, color="#d97706", lw=1.6)
     ax.set_ylim(-1.2, 1.2); ax.set_yticks([]); ax.set_xlim(g["start"], g["end"])
     ax.set_title(f"{len(ex)} exons · strand {'+' if g['strand']==1 else '-'} · "
-                 f"intron {v['_intron']}/{v['_nintrons']} · {v['_dist']:,} bp from the nearest splice site",
-                 fontsize=9)
+                 f"intron {v['_intron']}/{v['_nintrons']} · {v['_dist']:,} bp from the nearest splice site\n"
+                 f"shaded = the 4 kb drawn bottom-left", fontsize=9)
 
     # 2. THE EVIDENCE: the splice-site track, ±1 kb. This is what the score is computed from.
     ax = axes[0][1]
@@ -385,28 +394,46 @@ def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
     ax.set_xlabel(f"track {ti} · {track_name} · peaks are PREDICTED COVERAGE, not exons",
                   fontsize=8, loc="left")
 
-    loc = make_axes_locatable(ax).append_axes("top", size="22%", pad=0.06, sharex=None)
-    span = g["end"] - g["start"]
-    loc.plot([g["start"], g["end"]], [0, 0], color="#334155", lw=1.2)
+    # The strip SHARES THE X-AXIS with the panel below it.
+    #
+    # It first carried the whole gene, 15 kb of it, sitting flush above a 4 kb plot. Stacking two
+    # tracks vertically is the universal genome-browser signal that they share coordinates, so a
+    # strip on a different scale actively misleads: an exon block sitting above a coverage peak
+    # implies they are at the same place when they are nowhere near each other. The whole-gene
+    # "where am I" job now belongs to the top-left panel, which is already drawn at gene scale --
+    # it just needed the window marked on it.
+    ax.set_xlim(pos - 2000, pos + 2000)
+    loc = make_axes_locatable(ax).append_axes("top", size="16%", pad=0.05, sharex=ax)
+    loc.plot([pos - 2000, pos + 2000], [0, 0], color="#334155", lw=1.2, zorder=1)
     for a_, b_ in ex:
-        loc.add_patch(plt.Rectangle((a_, -0.42), max(b_ - a_, span / 400), 0.84, color="#1e293b"))
-    loc.axvspan(pos - 2000, pos + 2000, color="#d97706", alpha=0.35, zorder=3)
-    loc.axvline(pos, color="#d97706", lw=1.0, zorder=4)
-    loc.set_xlim(g["start"], g["end"]); loc.set_ylim(-1, 1)
-    loc.set_xticks([]); loc.set_yticks([])
+        if b_ < pos - 2000 or a_ > pos + 2000:
+            continue
+        loc.add_patch(plt.Rectangle((max(a_, pos - 2000), -0.5),
+                                    min(b_, pos + 2000) - max(a_, pos - 2000), 1.0,
+                                    color="#1e293b", zorder=2))
+    loc.axvline(pos, color="#d97706", lw=1.2, zorder=3)
+    loc.set_ylim(-1.1, 1.1); loc.set_yticks([])
+    plt.setp(loc.get_xticklabels(), visible=False)
+    loc.tick_params(axis="x", length=0)
+    # Hiding the tick LABELS does not hide the axis OFFSET ("+1.1316e8"), which is a separate
+    # artist. Left visible it floated inside the panel below, on top of the legend, looking like a
+    # stray annotation on the data.
+    loc.xaxis.offsetText.set_visible(False)
     for s_ in loc.spines.values():
         s_.set_visible(False)
-    # which way the nearest exon lies, and how far. The number in the corner is the same _dist the
-    # gene-model panel reports, so the two panels cannot disagree.
+
+    # Anything off the edge is named at the edge with its distance, the way a genome browser points
+    # at a feature it cannot fit. The numbers come from the same exon list the gene-model panel
+    # uses, so the two panels cannot disagree.
     left = [b_ for _a, b_ in ex if b_ <= pos]
     right = [a_ for a_, _b in ex if a_ >= pos]
-    bits = []
-    if left:
-        bits.append(f"◀ {pos - max(left):,} bp to the exon on the left")
-    if right:
-        bits.append(f"{min(right) - pos:,} bp to the exon on the right ▶")
-    loc.set_title(f"whole gene · black = exons · orange = the 4 kb below"
-                  + ("\n" + "   ".join(bits) if bits else ""), fontsize=7.5, pad=3)
+    if left and max(left) < pos - 2000:
+        loc.annotate(f"◀ exon, {pos - max(left):,} bp", xy=(0.005, 0.5), xycoords="axes fraction",
+                     fontsize=7, color="#334155", va="center", ha="left")
+    if right and min(right) > pos + 2000:
+        loc.annotate(f"exon, {min(right) - pos:,} bp ▶", xy=(0.995, 0.5), xycoords="axes fraction",
+                     fontsize=7, color="#334155", va="center", ha="right")
+    loc.set_title("gene model, same 4 kb and same scale as the track below", fontsize=7.5, pad=3)
 
     # 4. where this variant falls against the controls that define the scale
     ax = axes[1][1]

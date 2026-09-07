@@ -555,6 +555,9 @@ def main():
     # The browser's right-click queue copies exactly this. It has done since the queue was built,
     # and the flag did not exist, so the button handed you a command that died on argparse.
     ap.add_argument("--queue", help='comma-separated "<rsid-or-pos>:<REF><ALT>" from the browser queue')
+    # A control set scored into the same file as the thing it controls is not separable afterwards.
+    ap.add_argument("--peakctl", action="store_true",
+                    help="tag a --queue run as the density-matched peak control (writes panels_peakctl.json)")
     ap.add_argument("--cbpp", action="store_true",
                     help="run data/cbpp_screen.json -- the 2,000-variant stratified cb++ screen")
     ap.add_argument("--nofig", action="store_true", help="compute scores without writing PNGs")
@@ -844,7 +847,7 @@ def main():
         # --queue does not set --bucket, so it inherited the default "canonical" and merged
         # arbitrary queued variants into the known-answer manifest -- which is the one bucket whose
         # median effect size is asserted by the test suite. A queue gets its own file.
-        _name = "queue" if a.queue else (a.bucket + _suffix)
+        _name = ("peakctl" if a.peakctl else "queue") if a.queue else (a.bucket + _suffix)
         p = os.path.join(ROOT, f"data/panels_{_name}.json")
         # MERGE, do not overwrite. One --gene call per gene is the normal way to run this, and a
         # plain overwrite meant a 16-gene loop drew 16 figures and recorded 1: the PNGs were on disk

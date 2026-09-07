@@ -307,7 +307,8 @@ fetch('data/ref_mismatch.json').then(function(r){return r.json();}).then(functio
    cannot list a directory and a hand-kept list drifts silently. */
 var PANEL_FILES = ['data/panels.json', 'data/panels_canonical.json', 'data/panels_spliceai.json',
                    'data/panels_control.json', 'data/panels_peak.json', 'data/panels_peak_centre.json',
-                   'data/panels_cbpp.json', 'data/panels_queue.json'];
+                   'data/panels_cbpp.json', 'data/panels_queue.json',
+                   'data/panels_peakctl.json'];
 Promise.all([
   fetch('data/genes.json').then(function(r){return r.json();}),
   Promise.all(PANEL_FILES.map(function(f){

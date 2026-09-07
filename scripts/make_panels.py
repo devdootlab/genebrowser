@@ -117,7 +117,7 @@ def buckets_for(gene, genes, variants):
     return out, ex, g
 
 
-def peaks_for(bucket_deep, min_dist=100, binw=200, mode="auto"):
+def peaks_for(bucket_deep, min_dist=100, binw=200, mode="auto", min_per_gene=0):
     """Density peaks in DEEP intronic sequence -- the spikes in the browser's strip, minus
     everything within `min_dist` of a splice boundary.
 
@@ -138,12 +138,54 @@ def peaks_for(bucket_deep, min_dist=100, binw=200, mode="auto"):
     bins = {}
     for v in far:
         bins.setdefault(v["pos"] // binw, []).append(v)
-    counts = sorted(len(x) for x in bins.values())
+
+    # COUNT DISTINCT POSITIONS, NOT ROWS.
+    # One mutable site throws a ladder of alleles at a single coordinate -- PROS1 has a position
+    # carrying 80 of the 281 variants in a 487 bp window, next to a 20 bp homopolymer. Counting rows
+    # lets one such site manufacture a peak out of nothing. Counting positions makes the statistic
+    # immune to it by construction, and the genuine excess survives: that window goes from 99 rows
+    # to 77 distinct positions and is still well over threshold.
+    npos = {b: len({v["pos"] for v in vs}) for b, vs in bins.items()}
+    counts = sorted(npos.values())
     med = counts[len(counts) // 2]
     # median absolute deviation, scaled to a normal sigma; robust to the peaks themselves
     mad = sorted(abs(c - med) for c in counts)[len(counts) // 2] * 1.4826
-    thresh = max(med + 4 * mad, 3 * med, 5)
-    hot = sorted(b for b, vs in bins.items() if len(vs) >= thresh)
+
+    # NO 3x-MEDIAN FLOOR.
+    # It used to be max(med + 4*mad, 3*med, 5). In a dense gene the arbitrary 3*med term overrides
+    # the statistical one entirely and is the sole reason nothing fires: PROS1 sits at med 43,
+    # med+4sigma 90, 3*med 129 -- so a 99-count bin cleared the statistics and was rejected by the
+    # floor, and the whole gene yielded ONE peak. The MAD criterion is the test; 5 is only there so
+    # a genuinely sparse gene cannot call a 2-variant bin a peak.
+    thresh = max(med + 4 * mad, 5)
+    hot = sorted(b for b, n in npos.items() if n >= thresh)
+    via = {b: "threshold" for b in hot}
+
+    # PER-GENE FLOOR. A gene where no bin stands out yields nothing, forever, and is invisible
+    # rather than examined. Topping it up to `min_per_gene` guarantees every gene with introns gets
+    # looked at -- but a topped-up peak is a COVERAGE GUARANTEE, not a detection, so each one records
+    # which of the two put it there and the caller can tell them apart.
+    #
+    # Top up by PEAKS, not bins. Adjacent bins merge into one peak further down, so adding the two
+    # highest bins in a gene whose two highest bins happen to be neighbours still yields one peak --
+    # which is how a floor of 2 delivered 1 for PROZ and VKORC1. Each added bin must therefore be
+    # non-adjacent to everything already chosen, so it is guaranteed to become its own peak.
+    if min_per_gene:
+        def _runs(bs):
+            n, prev = 0, -99
+            for b in sorted(bs):
+                if b != prev + 1:
+                    n += 1
+                prev = b
+            return n
+        for b in sorted(npos, key=lambda k: -npos[k]):
+            if _runs(hot) >= min_per_gene:
+                break
+            if b in via or any(abs(b - h) <= 1 for h in hot):
+                continue
+            via[b] = "gene-floor"
+            hot.append(b)
+        hot = sorted(hot)
     # Merge ADJACENT hot bins. OAS1's three top "peaks" were 112,918,200-112,919,200 -- one
     # contiguous 1 kb region reported as three, which would have spent three panels re-asking the
     # same question. A peak is a run of hot bins, not a bin.
@@ -199,6 +241,9 @@ def peaks_for(bucket_deep, min_dist=100, binw=200, mode="auto"):
 
         r = dict(pick)
         r["_peak_n"] = len(vs)
+        r["_peak_npos"] = len({x["pos"] for x in vs})
+        r["_peak_via"] = "gene-floor" if any(via.get(b) == "gene-floor" for b in run) else "threshold"
+        r["_peak_thresh"] = round(thresh, 1)
         r["_peak_start"] = lo
         r["_peak_end"] = hi
         r["_peak_bins"] = len(run)
@@ -476,9 +521,14 @@ def draw(v, g, gene, model, dna_client, genome, outdir, savefig=True):
             # Provenance for --bucket peak. A result whose selection rule cannot be recovered from
             # the manifest is not reproducible, and this selection has already silently changed
             # rule once. Absent for every other bucket.
-            **({"picked_by": v["_picked_by"], "peak_start": v["_peak_start"],
-                "peak_end": v["_peak_end"], "peak_n": v["_peak_n"],
-                "peak_median": v["_peak_med"], "peak_n_scored": v["_peak_scored"],
+            # picked_via is the one that must not be lost: it separates a peak the STATISTIC found
+            # from one the per-gene floor supplied to guarantee coverage. Without it every row reads
+            # as a detection, which is exactly the claim a coverage guarantee is not making.
+            **({"picked_by": v["_picked_by"], "picked_via": v.get("_peak_via"),
+                "peak_start": v["_peak_start"], "peak_end": v["_peak_end"],
+                "peak_n": v["_peak_n"], "peak_npos": v.get("_peak_npos"),
+                "peak_median": v["_peak_med"], "peak_thresh": v.get("_peak_thresh"),
+                "peak_n_scored": v["_peak_scored"],
                 "peak_n_withaf": v["_peak_withaf"]} if "_picked_by" in v else {})}
 
 
@@ -488,6 +538,10 @@ def main():
     ap.add_argument("--bucket", default="canonical", choices=["canonical", "spliceregion", "deep", "spliceai", "peak"])
     ap.add_argument("--peakmin", type=int, default=100, help="min bp from any splice boundary for --bucket peak")
     ap.add_argument("--peakbin", type=int, default=200, help="window width for --bucket peak")
+    # A gene where no bin stands out otherwise yields nothing and is never examined at all.
+    ap.add_argument("--peakfloor", type=int, default=0,
+                    help="top up each gene to at least this many peaks; extras are a coverage "
+                         "guarantee, recorded as picked_via=gene-floor, not a detection")
     # "auto" ranks by SpliceAI, which makes the pick SpliceAI-driven and any AlphaGenome/SpliceAI
     # agreement partly circular (they correlate at r=0.72). "centre" takes the variant nearest the
     # peak middle regardless of any score -- the unbiased pick, and the one that actually asks
@@ -732,7 +786,7 @@ def main():
             pool.sort(key=lambda x: -x["spliceai"])
             b["spliceai"] = pool
         if a.bucket == "peak":
-            b["peak"] = peaks_for(b["deep"], a.peakmin, a.peakbin, a.peakpick)
+            b["peak"] = peaks_for(b["deep"], a.peakmin, a.peakbin, a.peakpick, a.peakfloor)
         picked = b[a.bucket][: a.limit]
         log(f"\n=== {gene} · bucket {a.bucket} · {len(b[a.bucket])} available, taking {len(picked)} ===")
         if a.bucket == "spliceai":

@@ -859,6 +859,28 @@ function paintZoom(){
          '<b>right to left</b> \u2014 so that is the row to look at for GT and AG splice signals.');
   // "Left-click opens, right-click queues" said nothing a person could act on: open WHAT, and
   // queue it FOR what? Both now say what actually happens and what you get at the end.
+  // WHY SO FEW PANELS HERE, answered in the window where the question occurs.
+  //
+  // Nothing computes AlphaGenome on demand: this is a static page and a static page cannot hold an
+  // API key. Every panel came from a batch run that SELECTED ON A PRIOR SIGNAL, so a stretch of
+  // gene with no prior signal has no panels and never will until someone asks for one. Saying
+  // "1 of 281" without saying why reads as a gap in the data rather than a property of the method.
+  var nPan = list.filter(function(r){ return PANELS[pkey(r)]; }).length;
+  var nSA  = list.filter(function(r){ return r.spliceai != null && r.spliceai >= 0.05; }).length;
+  var nPh  = list.filter(function(r){ return r.phylop != null && r.phylop >= 1; }).length;
+  var nCa  = list.filter(function(r){ return r.cadd != null && r.cadd >= 10; }).length;
+  var nSub = list.filter(function(r){ return vtype(r).kind === 'SNV'; }).length;
+  L.push('<b>AlphaGenome here: ' + nPan + ' of ' + list.length + '.</b> Panels are never computed ' +
+         'on demand \u2014 this page is static and cannot hold an API key, and scoring every variant in ' +
+         'the browser would be about 20 days of continuous API calls. They come from batch runs ' +
+         'that pick variants carrying some prior signal. In this window: ' +
+         '<b>SpliceAI \u2265 0.05: ' + nSA + '</b> \u00b7 <b>phyloP \u2265 1: ' + nPh + '</b> \u00b7 <b>CADD \u2265 10: ' + nCa + '</b>' +
+         ((nSA + nPh + nCa) === 0
+           ? ' \u2014 nothing here trips any of them, which is why nothing here was picked. That is not a ' +
+             'gap in the data; it is what an unremarkable stretch of intron looks like.'
+           : '.') +
+         ' ' + nSub + ' of these are single-base substitutions, the only kind AlphaGenome can score at all. ' +
+         '<b>To get one anyway: right-click the mark</b>, then use \u201cCopy the command\u201d below.');
   L.push('<b>Clicking:</b> <b>left-click</b> a mark to select it \u2014 its row highlights in the table below ' +
          'and a detail card opens under it with the position, frequency, predictor scores and the ' +
          'AlphaGenome figure if one has been drawn. &nbsp; ' +
